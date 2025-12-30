@@ -4,11 +4,11 @@
 tracker_type: botsort  # tracker type: botsort or bytetrack
 
 # BoT-SORT-specific settings for stable vehicle tracking
-track_high_thresh: 0.3  # threshold for first association (lower = more detections kept)
-track_low_thresh: 0.1   # threshold for second association (recovery)
-new_track_thresh: 0.4   # threshold for new track initialization
-track_buffer: 90        # frames to keep lost tracks (3 sec @ 30fps) - CRITICAL for stability
-match_thresh: 0.85      # IoU threshold for matching
+track_high_thresh: 0.5  # threshold for first association (0.5 is standard, was 0.3)
+track_low_thresh: 0.1   # threshold for second association
+new_track_thresh: 0.6   # threshold for new track initialization (0.6 is standard, was 0.4)
+track_buffer: 30        # frames to keep lost tracks (1 sec @ 30fps) - Lower reduces ghosting
+match_thresh: 0.8       # IoU threshold for matching
 
 # ReID (Re-identification) - helps recover lost tracks
 with_reid: false        # disable ReID for now (requires additional model)
