@@ -41,6 +41,8 @@ Ejemplos:
                                help="Factor de reducción de resolución")
     process_parser.add_argument("--max-minutes", type=float, help="Límite de minutos a procesar")
     process_parser.add_argument("--no-video", action="store_true", help="No guardar video de salida")
+    process_parser.add_argument("--deblurring", action="store_true", 
+                               help="Aplicar deblurring agresivo (para videos nocturnos con motion blur)")
     process_parser.add_argument("--quiet", "-q", action="store_true", help="Modo silencioso")
     
     # Comando: scan
@@ -100,7 +102,8 @@ def cmd_process(args):
             zones_path=args.zones,
             mask_path=args.mask,
             output_folder=args.output,
-            base_time=args.base_time
+            base_time=args.base_time,
+            enable_deblurring=args.deblurring
         )
         
         if not args.quiet:

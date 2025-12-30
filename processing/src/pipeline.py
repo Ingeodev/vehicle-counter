@@ -11,8 +11,9 @@ import numpy as np
 from .config import PipelineConfig, OutputConfig
 from .storage import StorageReader, StorageWriter, LocalStorageReader, LocalStorageWriter
 from .data import VideoSource, VideoInfo, DirectoryScanner, ProcessingResult
-from .processing import YOLODetector, DetectorConfig, VehicleTracker, ZoneManager, MaskManager, VehicleCounter, CounterConfig
+from .processing import YOLODetector, DetectorConfig, VehicleTracker, ZoneManager, MaskManager, TrackDeduplicator, VehicleCounter, CounterConfig
 from .output import AnnotatedVideoWriter, VideoWriterConfig, CSVExporter, Visualizer
+from .utils import FrameDeblurrer, format_timestamp
 
 
 class VideoPipeline:
@@ -74,7 +75,8 @@ class VideoPipeline:
                 model_path=self.config.detector.model_path,
                 device=self.config.detector.device,
                 vehicle_classes=self.config.detector.vehicle_classes,
-                confidence_threshold=self.config.detector.confidence_threshold
+                confidence_threshold=self.config.detector.confidence_threshold,
+                tracker_config="botsort_vehicles.yaml"  # Usar tracker optimizado
             )
             self._detector = YOLODetector(detector_config)
         return self._detector
@@ -87,7 +89,8 @@ class VideoPipeline:
         output_folder: str | None = None,
         output_name: str | None = None,
         base_time: str = "00:00",
-        on_progress: Callable[[int, int, float], None] | None = None
+        on_progress: Callable[[int, int, float], None] | None = None,
+        enable_deblurring: bool = False
     ) -> ProcessingResult:
         """
         Procesa un video completo.
@@ -176,6 +179,13 @@ class VideoPipeline:
             )
             counter = VehicleCounter(self.detector, counter_config, zone_manager)
             
+            # Crear deduplicador para IDs estables
+            deduplicator = TrackDeduplicator(
+                max_distance=60.0,
+                lookback_frames=int(video.fps * 3),  # 3 segundos
+                min_positions_to_compare=5
+            )
+            
             # Configurar video writer
             output_video_path = None
             video_writer = None
@@ -207,9 +217,18 @@ class VideoPipeline:
             # Procesar frames
             resize = (new_width, new_height) if reduce_factor > 1 else None
             
+            # Crear deblurrer si está habilitado
+            deblurrer = FrameDeblurrer.create_aggressive() if enable_deblurring else None
+            if deblurrer and out_cfg.verbose:
+                print("🌃 Deblurring activado (modo agresivo para video nocturno)")
+            
             for frame_data in video.frames(max_frames=max_frames, resize=resize):
                 frame = frame_data.frame
                 timestamp = frame_data.timestamp_seconds
+                
+                # Aplicar deblurring si está habilitado
+                if deblurrer:
+                    frame = deblurrer.process(frame)
                 
                 # Detectar y trackear
                 detections = counter.process_frame(frame, timestamp, base_time)
@@ -217,6 +236,18 @@ class VideoPipeline:
                 # Filtrar detecciones con máscara
                 if mask_manager.is_loaded:
                     detections = mask_manager.filter_detections(detections)
+                
+                # Aplicar deduplicación para IDs estables
+                for det in detections:
+                    original_id = deduplicator.get_original_id(
+                        det.track_id,
+                        det.center,
+                        frames_processed,
+                        det.class_name
+                    )
+                    # Actualizar el ID si fue deduplicado
+                    if original_id != det.track_id:
+                        det.track_id = original_id
                 
                 # Visualizar si guardamos video
                 if video_writer:

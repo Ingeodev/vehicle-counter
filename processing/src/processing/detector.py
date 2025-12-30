@@ -2,9 +2,11 @@
 YOLODetector - Wrapper para detección con YOLO.
 """
 
+import os
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+from pathlib import Path
 
 from ultralytics import YOLO
 
@@ -28,6 +30,7 @@ class DetectorConfig:
     device: str = "cpu"
     vehicle_classes: dict[int, str] | None = None
     confidence_threshold: float = 0.5
+    tracker_config: str | None = None  # Ruta a config de tracker (e.g. botsort.yaml)
     
     def __post_init__(self):
         if self.vehicle_classes is None:
@@ -104,14 +107,28 @@ class YOLODetector:
         Returns:
             Lista de detecciones con IDs de tracking
         """
+        # Preparar argumentos de tracking
+        track_kwargs = {
+            "persist": persist,
+            "device": self.device,
+            "classes": self.allowed_class_ids,
+            "verbose": False
+        }
+        
+        # Usar tracker config si está definido
+        if self.config.tracker_config:
+            # Verificar si es ruta absoluta o relativa
+            tracker_path = self.config.tracker_config
+            if not os.path.isabs(tracker_path):
+                # Buscar en el directorio de config del paquete
+                pkg_dir = Path(__file__).parent.parent / "config"
+                local_path = pkg_dir / tracker_path
+                if local_path.exists():
+                    tracker_path = str(local_path)
+            track_kwargs["tracker"] = tracker_path
+        
         # Ejecutar inferencia con tracking
-        results = self.model.track(
-            frame,
-            persist=persist,
-            device=self.device,
-            classes=self.allowed_class_ids,
-            verbose=False
-        )
+        results = self.model.track(frame, **track_kwargs)
         
         if not results or len(results) == 0:
             return []

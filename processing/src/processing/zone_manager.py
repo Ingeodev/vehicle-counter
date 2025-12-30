@@ -11,6 +11,7 @@ import numpy as np
 
 from ..data.schemas import ZoneConfig, ZoneEntry
 from ..storage.base import StorageReader
+from .zone_deduplicator import ZoneDeduplicator
 
 
 @dataclass
@@ -39,12 +40,29 @@ class ZoneManager:
         ...     print(f"Vehicle entered zone: {result.entered_zone}")
     """
     
-    def __init__(self):
-        """Inicializa el ZoneManager."""
+    def __init__(self, enable_deduplication: bool = True, dedup_spatial_threshold: float = 150.0, dedup_temporal_threshold: float = 5.0):
+        """
+        Inicializa el ZoneManager.
+        
+        Args:
+            enable_deduplication: Si activar detección de duplicados por proximidad
+            dedup_spatial_threshold: Distancia máxima para considerar duplicado (píxeles)
+            dedup_temporal_threshold: Tiempo máximo para considerar duplicado (segundos)
+        """
         self._zones_original: list[ZoneConfig] = []
         self._zones_scaled: list[ZoneConfig] = []
         self._vehicle_zone_history: dict[int, list[str]] = {}
         self._detection_log: list[ZoneEntry] = []
+        
+        # Deduplicador de zonas
+        self._enable_dedup = enable_deduplication
+        self._zone_dedup = ZoneDeduplicator(
+            spatial_threshold=dedup_spatial_threshold,
+            temporal_threshold=dedup_temporal_threshold,
+            same_type_only=False  # Detectar duplicados incluso si el tipo cambia
+        ) if enable_deduplication else None
+        
+        self._frame_num = 0  # Contador de frames para deduplicador
     
     def load_from_json(self, storage: StorageReader, path: str) -> int:
         """
@@ -165,9 +183,26 @@ class ZoneManager:
         # Verificar cada zona
         for zone in self._zones_scaled:
             if self.point_in_zone(point, zone):
-                # Verificar si es primera vez en esta zona
+                # Verificar si es primera vez en esta zona para este track_id
                 if zone.label not in self._vehicle_zone_history[track_id]:
-                    # Nueva entrada
+                    
+                    # DEDUPLICACIÓN: Verificar si hay otro vehículo cercano que ya entró
+                    if self._enable_dedup and self._zone_dedup:
+                        is_valid = self._zone_dedup.should_count_entry(
+                            track_id=track_id,
+                            zone=zone.label,
+                            position=point,
+                            timestamp=timestamp_seconds,
+                            vehicle_type=vehicle_type,
+                            frame_num=self._frame_num
+                        )
+                        if not is_valid:
+                            # Es duplicado - marcar como visitado para no re-intentar
+                            # pero NO registrar en log
+                            self._vehicle_zone_history[track_id].append(zone.label)
+                            continue  # Revisar siguiente zona
+                    
+                    # Nueva entrada válida
                     self._vehicle_zone_history[track_id].append(zone.label)
                     entered_zone = zone.label
                     is_new_entry = True
@@ -189,6 +224,8 @@ class ZoneManager:
                     self._detection_log.append(entry)
                     
                     break  # Solo registrar primera zona nueva por update
+        
+        self._frame_num += 1
         
         return ZoneCheckResult(
             entered_zone=entered_zone,
