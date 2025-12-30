@@ -47,6 +47,8 @@ Ejemplos:
                                help="Estrategia de detección: 'box' (cajas) o 'seg' (segmentación)")
     process_parser.add_argument("--night-enhance", action="store_true",
                                help="Mejorar visibilidad nocturna (Gamma + CLAHE) sin distorsión")
+    process_parser.add_argument("--date", default="2025-01-01",  # Default provisional
+                               help="Fecha del video (YYYY-MM-DD)")
     process_parser.add_argument("--model-config", type=str,
                                help="Ruta a archivo YAML con parámetros del modelo (thresholds por clase)")
 
@@ -70,6 +72,8 @@ Ejemplos:
                                help="Estrategia de detección: 'box' (cajas) o 'seg' (segmentación)")
     scan_parser.add_argument("--night-enhance", action="store_true",
                                help="Mejorar visibilidad nocturna")
+    scan_parser.add_argument("--date", default="2025-01-01",
+                               help="Fecha común para todos los videos (YYYY-MM-DD)")
     scan_parser.add_argument("--model-config", type=str,
                                help="Ruta a archivo YAML con parámetros del modelo")
     scan_parser.add_argument("--deblurring", action="store_true", help="Aplicar deblurring")
@@ -148,6 +152,7 @@ def cmd_process(args):
             mask_path=args.mask,
             output_folder=args.output,
             base_time=args.base_time,
+            date=args.date,
             enable_deblurring=args.deblurring,
             enable_night_enhance=args.night_enhance
         )
@@ -176,7 +181,7 @@ def cmd_scan(args):
     config.output.verbose = not args.quiet
     config.output.output_folder = args.output
     config.detector.strategy = args.strategy
-
+    
     # Sobrescribir modelo si se especifica
     if args.model:
         config.detector.model_path = args.model
@@ -225,7 +230,8 @@ def cmd_scan(args):
             mask_path=args.mask,
             zones_path=args.zones,
             enable_deblurring=args.deblurring,
-            enable_night_enhance=args.night_enhance
+            enable_night_enhance=args.night_enhance,
+            date=args.date
         )
         
         if not args.quiet:

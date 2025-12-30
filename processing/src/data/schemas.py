@@ -113,9 +113,11 @@ class ZoneEntry:
     vehicle_id: int
     vehicle_type: str
     zone: str
-    timestamp_seconds: float
+    date: str
+    exact_time: str
     timestamp_formatted: str
-    exact_time: str | None = None
+    # timestamp_seconds eliminado a petición del usuario
+
 
 
 @dataclass

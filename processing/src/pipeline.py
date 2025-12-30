@@ -97,6 +97,7 @@ class VideoPipeline:
         output_folder: str | None = None,
         output_name: str | None = None,
         base_time: str = "00:00",
+        date: str = "Unknown",
         on_progress: Callable[[int, int, float], None] | None = None,
         enable_deblurring: bool = False,
         enable_night_enhance: bool = False
@@ -111,6 +112,7 @@ class VideoPipeline:
             output_folder: Carpeta de salida
             output_name: Nombre del archivo de salida
             base_time: Hora base del video
+            date: Fecha del video (YYYY-MM-DD)
             on_progress: Callback para progreso
             
         Returns:
@@ -252,7 +254,7 @@ class VideoPipeline:
                     frame = enhancer.process(frame)
                 
                 # Detectar y trackear
-                detections = counter.process_frame(frame, timestamp, base_time)
+                detections = counter.process_frame(frame, timestamp, base_time, date)
                 
                 # Filtrar detecciones con máscara
                 if mask_manager.is_loaded:
@@ -374,7 +376,8 @@ class VideoPipeline:
         mask_path: str | None = None,
         zones_path: str | None = None,
         enable_deblurring: bool = False,
-        enable_night_enhance: bool = False
+        enable_night_enhance: bool = False,
+        date: str = "Unknown"
     ) -> list[ProcessingResult]:
         """
         Procesa todos los videos en un directorio.
@@ -384,6 +387,7 @@ class VideoPipeline:
             output_base: Carpeta base de salida
             recursive: Si escanear subdirectorios
             on_video_complete: Callback al completar cada video
+            date: Fecha común para todos los videos
             
         Returns:
             Lista de ProcessingResult
@@ -407,6 +411,7 @@ class VideoPipeline:
                     output_folder=output_folder,
                     output_name=video_info.output_name,
                     base_time=video_info.hora_inicial,
+                    date=date,
                     enable_deblurring=enable_deblurring,
                     enable_night_enhance=enable_night_enhance
                 )

@@ -55,9 +55,9 @@ class CSVExporter:
                 "vehicle_id": e.vehicle_id,
                 "vehicle_type": e.vehicle_type,
                 "zone": e.zone,
-                "timestamp_seconds": e.timestamp_seconds,
-                "timestamp_formatted": e.timestamp_formatted,
-                "exact_time": e.exact_time or ""
+                "date": e.date,
+                "exact_time": e.exact_time,
+                "timestamp_formatted": e.timestamp_formatted
             }
             for e in entries
         ]

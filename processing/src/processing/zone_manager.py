@@ -156,7 +156,8 @@ class ZoneManager:
         y: int,
         timestamp_seconds: float,
         vehicle_type: str,
-        exact_time: str | None = None
+        date: str,
+        exact_time: str
     ) -> ZoneCheckResult:
         """
         Verifica si un vehículo entró a una zona nueva.
@@ -164,9 +165,10 @@ class ZoneManager:
         Args:
             track_id: ID del vehículo
             x, y: Coordenadas del centro
-            timestamp_seconds: Tiempo actual en segundos
+            timestamp_seconds: Tiempo actual en segundos (para deduplicación)
             vehicle_type: Tipo de vehículo
-            exact_time: Hora exacta opcional (formato HH:MM:SS)
+            date: Fecha del video (YYYY-MM-DD)
+            exact_time: Hora exacta (HH:MM:SS)
             
         Returns:
             ZoneCheckResult con información de la entrada
@@ -207,7 +209,7 @@ class ZoneManager:
                     entered_zone = zone.label
                     is_new_entry = True
                     
-                    # Formatear timestamp
+                    # Formatear timestamp relativo (info extra)
                     minutes = int(timestamp_seconds // 60)
                     secs = int(timestamp_seconds % 60)
                     timestamp_formatted = f"{minutes:02d}:{secs:02d}"
@@ -217,9 +219,9 @@ class ZoneManager:
                         vehicle_id=track_id,
                         vehicle_type=vehicle_type,
                         zone=zone.label,
-                        timestamp_seconds=timestamp_seconds,
-                        timestamp_formatted=timestamp_formatted,
-                        exact_time=exact_time
+                        date=date,
+                        exact_time=exact_time,
+                        timestamp_formatted=timestamp_formatted
                     )
                     self._detection_log.append(entry)
                     

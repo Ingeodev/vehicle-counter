@@ -78,11 +78,28 @@ class VehicleCounter:
         """
         return self.zone_manager.load_from_json(storage, zones_path)
     
+    def calculate_exact_time(self, base_time: str, elapsed_seconds: float) -> str:
+        """Calcula hora exacta sumando segundos a la hora base (HH:MM o HH:MM:SS)."""
+        try:
+            from datetime import datetime, timedelta
+            
+            # Detectar formato
+            fmt = "%H:%M:%S" if len(base_time.split(":")) == 3 else "%H:%M"
+            
+            # Usar fecha dummy
+            base_dt = datetime.strptime(f"2000-01-01 {base_time}", f"%Y-%m-%d {fmt}")
+            exact_dt = base_dt + timedelta(seconds=elapsed_seconds)
+            
+            return exact_dt.strftime("%H:%M:%S")
+        except Exception:
+            return base_time # Fallback
+
     def process_frame(
         self,
         frame: np.ndarray,
         timestamp_seconds: float,
-        base_time: str | None = None
+        base_time: str | None = None,
+        date: str = "Unknown"  # Fecha del video
     ) -> list[Detection]:
         """
         Procesa un frame individual.
@@ -91,6 +108,7 @@ class VehicleCounter:
             frame: Frame de video
             timestamp_seconds: Tiempo actual en segundos
             base_time: Hora base del video
+            date: Fecha del video
             
         Returns:
             Lista de detecciones
@@ -103,6 +121,11 @@ class VehicleCounter:
         
         # Verificar zonas para cada detección
         if self.zone_manager:
+            # Calcular hora exacta
+            exact_time = "00:00:00"
+            if base_time:
+                exact_time = self.calculate_exact_time(base_time, timestamp_seconds)
+                
             for det in detections:
                 cx, cy = det.center
                 result = self.zone_manager.check_entry(
@@ -111,7 +134,8 @@ class VehicleCounter:
                     y=cy,
                     timestamp_seconds=timestamp_seconds,
                     vehicle_type=det.class_name,
-                    exact_time=base_time  # TODO: calcular hora exacta
+                    date=date,
+                    exact_time=exact_time
                 )
                 
                 if result.is_new_entry and self._on_zone_entry:
@@ -127,6 +151,7 @@ class VehicleCounter:
         video: VideoSource,
         video_info: VideoInfo,
         base_time: str | None = None,
+        date: str = "Unknown",
         on_progress: Callable[[int, int, float], None] | None = None
     ) -> ProcessingResult:
         """
@@ -136,6 +161,7 @@ class VehicleCounter:
             video: Fuente de video
             video_info: Información del video
             base_time: Hora base del video
+            date: Fecha del video (YYYY-MM-DD)
             on_progress: Callback para progreso (frame_index, total, elapsed_time)
             
         Returns:
@@ -174,6 +200,8 @@ class VehicleCounter:
             print("🎬 PROCESANDO VIDEO")
             print("=" * 70)
             print(f"📹 {video_info.path}")
+            print(f"📅 Fecha: {date}")
+            print(f"🕐 Hora base: {base_time}")
             print(f"📊 Resolución: {video.width}x{video.height} → {new_width}x{new_height}")
             print(f"🎯 Frames: {min(max_frames, video.total_frames)}")
             print(f"⚡ FPS: {video.fps:.1f}")
@@ -188,7 +216,8 @@ class VehicleCounter:
             self.process_frame(
                 frame_data.frame,
                 frame_data.timestamp_seconds,
-                base_time
+                base_time,
+                date
             )
             
             frames_processed += 1
