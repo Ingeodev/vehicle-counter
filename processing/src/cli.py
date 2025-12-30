@@ -49,6 +49,7 @@ Ejemplos:
                                help="Mejorar visibilidad nocturna (Gamma + CLAHE) sin distorsión")
     process_parser.add_argument("--model-config", type=str,
                                help="Ruta a archivo YAML con parámetros del modelo (thresholds por clase)")
+
     process_parser.add_argument("--no-video", action="store_true", help="No guardar video de salida")
     process_parser.add_argument("--deblurring", action="store_true", 
                                help="Aplicar deblurring agresivo (para videos nocturnos con motion blur)")
@@ -63,6 +64,16 @@ Ejemplos:
     scan_parser.add_argument("--model", default="yolov8s.pt", help="Modelo YOLO")
     scan_parser.add_argument("--reduce", "-r", type=int, default=1)
     scan_parser.add_argument("--max-minutes", type=float)
+    scan_parser.add_argument("--zones", "-z", help="Ruta global al archivo JSON de zonas (override)")
+    scan_parser.add_argument("--mask", "-m", help="Ruta global a la máscara (override)")
+    scan_parser.add_argument("--strategy",choices=["box", "seg"], default="box",
+                               help="Estrategia de detección: 'box' (cajas) o 'seg' (segmentación)")
+    scan_parser.add_argument("--night-enhance", action="store_true",
+                               help="Mejorar visibilidad nocturna")
+    scan_parser.add_argument("--model-config", type=str,
+                               help="Ruta a archivo YAML con parámetros del modelo")
+    scan_parser.add_argument("--deblurring", action="store_true", help="Aplicar deblurring")
+    scan_parser.add_argument("--yes", "-y", action="store_true", help="Confirmar automáticamente sin preguntar")
     scan_parser.add_argument("--quiet", "-q", action="store_true")
     
     # Comando: info
@@ -102,6 +113,10 @@ def cmd_process(args):
     config.output.output_folder = args.output
     config.output.output_folder = args.output
     config.detector.strategy = args.strategy
+    
+    # Sobrescribir modelo si se especifica
+    if args.model:
+        config.detector.model_path = args.model
     
     # Cargar config de modelo si existe
     if args.model_config:
@@ -160,6 +175,30 @@ def cmd_scan(args):
     config.video.max_minutes = args.max_minutes
     config.output.verbose = not args.quiet
     config.output.output_folder = args.output
+    config.detector.strategy = args.strategy
+
+    # Sobrescribir modelo si se especifica
+    if args.model:
+        config.detector.model_path = args.model
+    
+    # Cargar config de modelo si existe
+    if args.model_config:
+        try:
+            with open(args.model_config, "r") as f:
+                model_params = yaml.safe_load(f)
+                
+            if "default_threshold" in model_params:
+                config.detector.confidence_threshold = float(model_params["default_threshold"])
+                
+            if "class_thresholds" in model_params:
+                config.detector.class_thresholds = model_params["class_thresholds"]
+                
+            if not args.quiet:
+                print(f"✅ Configuración de modelo cargada desde: {args.model_config}")
+                
+        except Exception as e:
+            print(f"❌ Error al cargar config de modelo: {e}")
+            sys.exit(1)
     
     # Crear pipeline
     pipeline = VideoPipeline(config)
@@ -171,17 +210,22 @@ def cmd_scan(args):
         print(f"\n📹 Encontrados {len(scan_result.videos)} videos")
         print(f"⏱️ Duración total estimada: {scan_result.total_duration_minutes / 60:.1f} horas")
         
-        response = input("\n¿Procesar todos? [y/N] ")
-        if response.lower() != "y":
-            print("Cancelado.")
-            return 0
+        if not args.yes:
+            response = input("\n¿Procesar todos? [y/N] ")
+            if response.lower() != "y":
+                print("Cancelado.")
+                return 0
     
     # Procesar
     try:
         results = pipeline.process_directory(
             root_path=args.directory,
             output_base=args.output,
-            recursive=args.recursive
+            recursive=args.recursive,
+            mask_path=args.mask,
+            zones_path=args.zones,
+            enable_deblurring=args.deblurring,
+            enable_night_enhance=args.night_enhance
         )
         
         if not args.quiet:

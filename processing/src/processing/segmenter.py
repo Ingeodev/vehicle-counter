@@ -83,16 +83,10 @@ class YOLOSegmenter:
         # Extraer máscaras (si hay)
         masks = None
         if result.masks is not None:
-            # xy: Segmentos (polígonos)
-            # data: Mapas de bits
-            masks = result.masks.data.cpu().numpy()  # (N, H, W) - máscaras redimensionadas
-            # Nota: las máscaras de 'data' suelen estar escaladas a tamaño de inferencia
-            # Usar result.masks.xy para polígonos es otra opción, pero opencv moments requiere imagen binaria
-            
-            # Sin embargo, ultralytics ya escala máscaras a tamaño original si retina_masks=True y usamos .data
-            # Revisar documentación: result.masks.data son tensores de máscaras.
-            # Verificaremos su tamaño abajo.
-            pass
+            # Solo guardamos referencia, no descargamos los bitmaps pesados (.data)
+            # Usaremos .xy (polígonos) que es mucho más ligero
+            masks = result.masks
+
 
         track_detections: list[Detection] = []
         

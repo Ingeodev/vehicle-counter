@@ -248,6 +248,10 @@ class ZoneManager:
     def get_detection_log(self) -> list[ZoneEntry]:
         """Retorna el log de todas las detecciones."""
         return self._detection_log.copy()
+        
+    def get_log_count(self) -> int:
+        """Retorna cantidad de detecciones en log."""
+        return len(self._detection_log)
     
     def get_zone_counts(self) -> dict[str, int]:
         """

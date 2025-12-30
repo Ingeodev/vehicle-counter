@@ -2,12 +2,12 @@
 Pipeline - Orquestador principal del procesamiento de videos.
 """
 
-import time
-from dataclasses import dataclass
-from typing import Callable
-
+import cv2
 import numpy as np
+import time
+from tqdm import tqdm
 
+from typing import Callable
 from .config import PipelineConfig, OutputConfig
 from .storage import StorageReader, StorageWriter, LocalStorageReader, LocalStorageWriter
 from .data import VideoSource, VideoInfo, DirectoryScanner, ProcessingResult
@@ -147,6 +147,10 @@ class VideoPipeline:
         video_path_local = self.reader.get_video_path(video_path)
         video = VideoSource.from_path(video_path_local)
         
+        # Resetear tracker si es necesario (para limpiar estado de video anterior)
+        if hasattr(self.detector, "reset_tracking"):
+            self.detector.reset_tracking()
+        
         try:
             # Actualizar video info con metadatos
             video_info.fps = video.fps
@@ -223,6 +227,10 @@ class VideoPipeline:
             if out_cfg.verbose:
                 self._print_start_info(video_info, new_width, new_height, max_frames, zone_manager)
             
+            # Inicializar barra de progreso
+            pbar = tqdm(total=max_frames, unit="frames", desc=f"Procesando {output_name or 'video'}",
+                       disable=not out_cfg.verbose)
+            
             # Procesar frames
             resize = (new_width, new_height) if reduce_factor > 1 else None
             
@@ -230,10 +238,10 @@ class VideoPipeline:
             enhancer = None
             if enable_night_enhance:
                 enhancer = FrameDeblurrer.create_night_enhance()
-                if out_cfg.verbose: print("🌙 Night Enhance activado (Gamma + CLAHE)")
+                if out_cfg.verbose: tqdm.write("🌙 Night Enhance activado (Gamma + CLAHE)")
             elif enable_deblurring:
                 enhancer = FrameDeblurrer.create_aggressive()
-                if out_cfg.verbose: print("🌃 Deblurring activado (Agresivo)")
+                if out_cfg.verbose: tqdm.write("🌃 Deblurring activado (Agresivo)")
             
             for frame_data in video.frames(max_frames=max_frames, resize=resize):
                 frame = frame_data.frame
@@ -287,14 +295,24 @@ class VideoPipeline:
                 
                 frames_processed += 1
                 
-                # Callback de progreso
+                
+                # Callback de progreso (opcional para integraciones externas)
                 if on_progress and frames_processed % out_cfg.progress_interval == 0:
                     elapsed = time.time() - start_time
                     on_progress(frames_processed, max_frames, elapsed)
                 
-                # Log de progreso
-                if out_cfg.verbose and frames_processed % out_cfg.progress_interval == 0:
-                    self._print_progress(frames_processed, max_frames, start_time, zone_manager)
+                # Actualizar barra con info extra
+                if frames_processed % 10 == 0: # Actualizar cada 10 frames para no saturar
+                    postfix = {}
+                    if zone_manager:
+                        postfix["detections"] = zone_manager.get_log_count()
+                    pbar.set_postfix(postfix)
+                
+                pbar.update(1)
+
+            pbar.close()
+
+
             
             # Cerrar video writer
             if video_writer:
@@ -352,7 +370,11 @@ class VideoPipeline:
         root_path: str,
         output_base: str | None = None,
         recursive: bool = True,
-        on_video_complete: Callable[[VideoInfo, ProcessingResult], None] | None = None
+        on_video_complete: Callable[[VideoInfo, ProcessingResult], None] | None = None,
+        mask_path: str | None = None,
+        zones_path: str | None = None,
+        enable_deblurring: bool = False,
+        enable_night_enhance: bool = False
     ) -> list[ProcessingResult]:
         """
         Procesa todos los videos en un directorio.
@@ -380,11 +402,13 @@ class VideoPipeline:
                 
                 result = self.process_video(
                     video_path=video_info.path,
-                    zones_path=video_info.zones_path,
-                    mask_path=video_info.mask_path,
+                    zones_path=zones_path or video_info.zones_path,
+                    mask_path=mask_path or video_info.mask_path,
                     output_folder=output_folder,
                     output_name=video_info.output_name,
-                    base_time=video_info.hora_inicial
+                    base_time=video_info.hora_inicial,
+                    enable_deblurring=enable_deblurring,
+                    enable_night_enhance=enable_night_enhance
                 )
                 
                 results.append(result)
