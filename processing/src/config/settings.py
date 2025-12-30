@@ -37,6 +37,7 @@ class DetectorConfig:
     confidence_threshold: float = 0.5
     strategy: str = "box"  # 'box' o 'seg'
     tracker_config: str | None = None
+    class_thresholds: dict[str, float] | None = None  # Umbrales específicos por nombre de clase
     vehicle_classes: dict[int, str] = field(default_factory=lambda: DEFAULT_VEHICLE_CLASSES.copy())
 
 
@@ -125,6 +126,8 @@ class PipelineConfig:
                 "confidence_threshold": self.detector.confidence_threshold,
                 "strategy": self.detector.strategy,
                 "tracker_config": self.detector.tracker_config,
+                "class_thresholds": self.detector.class_thresholds,
+                "vehicle_classes": self.detector.vehicle_classes,
                 "vehicle_classes": self.detector.vehicle_classes,
             },
             "output": {

@@ -1,0 +1,12 @@
+# Configuración de Sensibilidad de Detección
+# Define umbrales de confianza (thresholds) específicos por clase.
+# Si una clase no está definida aquí, usa 'default_threshold'.
+
+default_threshold: 0.5
+
+class_thresholds:
+  motorcycle: 0.30  # Más sensible
+  bicycle: 0.30     # Más sensible
+  car: 0.55         # Estándar
+  bus: 0.60         # Más riguroso (evitar falsos positivos grandes)
+  truck: 0.60       # Más riguroso

@@ -9,7 +9,7 @@ import cv2
 from ultralytics import YOLO
 
 from ..data.schemas import Detection, BoundingBox
-from .detector import DetectorConfig, DEFAULT_VEHICLE_CLASSES
+from ..config.settings import DetectorConfig, DEFAULT_VEHICLE_CLASSES
 
 
 class YOLOSegmenter:
@@ -100,7 +100,14 @@ class YOLOSegmenter:
             if cls_id not in self.vehicle_classes:
                 continue
                 
-            if conf < self.config.confidence_threshold:
+            # Obtener umbral específico o general
+            cls_name = self.vehicle_classes[int(cls_id)]
+            threshold = self.config.confidence_threshold
+            
+            if self.config.class_thresholds and cls_name in self.config.class_thresholds:
+                threshold = self.config.class_thresholds[cls_name]
+                
+            if conf < threshold:
                 continue
                 
             x1, y1, x2, y2 = box.astype(int)
@@ -157,7 +164,12 @@ class YOLOSegmenter:
         
         detections = []
         for i, (box, cls_id, conf) in enumerate(zip(boxes, class_ids, confidences)):
-            if conf < self.config.confidence_threshold: continue
+            cls_name = self.vehicle_classes.get(int(cls_id), "unknown")
+            threshold = self.config.confidence_threshold
+            if self.config.class_thresholds and cls_name in self.config.class_thresholds:
+                threshold = self.config.class_thresholds[cls_name]
+                
+            if conf < threshold: continue
             x1, y1, x2, y2 = box.astype(int)
             
             mask_center = None

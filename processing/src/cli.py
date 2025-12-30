@@ -5,7 +5,10 @@ CLI - Interfaz de línea de comandos para el contador de vehículos.
 
 import argparse
 import sys
+import yaml
 from pathlib import Path
+
+from .config import PipelineConfig
 
 
 def main():
@@ -44,6 +47,8 @@ Ejemplos:
                                help="Estrategia de detección: 'box' (cajas) o 'seg' (segmentación)")
     process_parser.add_argument("--night-enhance", action="store_true",
                                help="Mejorar visibilidad nocturna (Gamma + CLAHE) sin distorsión")
+    process_parser.add_argument("--model-config", type=str,
+                               help="Ruta a archivo YAML con parámetros del modelo (thresholds por clase)")
     process_parser.add_argument("--no-video", action="store_true", help="No guardar video de salida")
     process_parser.add_argument("--deblurring", action="store_true", 
                                help="Aplicar deblurring agresivo (para videos nocturnos con motion blur)")
@@ -95,7 +100,27 @@ def cmd_process(args):
     config.output.save_video = not args.no_video
     config.output.verbose = not args.quiet
     config.output.output_folder = args.output
+    config.output.output_folder = args.output
     config.detector.strategy = args.strategy
+    
+    # Cargar config de modelo si existe
+    if args.model_config:
+        try:
+            with open(args.model_config, "r") as f:
+                model_params = yaml.safe_load(f)
+                
+            if "default_threshold" in model_params:
+                config.detector.confidence_threshold = float(model_params["default_threshold"])
+                
+            if "class_thresholds" in model_params:
+                config.detector.class_thresholds = model_params["class_thresholds"]
+                
+            if not args.quiet:
+                print(f"✅ Configuración de modelo cargada desde: {args.model_config}")
+                
+        except Exception as e:
+            print(f"❌ Error al cargar config de modelo: {e}")
+            sys.exit(1)
     
     # Crear pipeline
     pipeline = VideoPipeline(config)

@@ -23,19 +23,7 @@ DEFAULT_VEHICLE_CLASSES = {
 }
 
 
-@dataclass
-class DetectorConfig:
-    """Configuración del detector YOLO."""
-    model_path: str = "yolov8s.pt"
-    device: str = "cpu"
-    vehicle_classes: dict[int, str] | None = None
-    confidence_threshold: float = 0.5
-    tracker_config: str | None = None  # Ruta a config de tracker (e.g. botsort.yaml)
-    use_segmentation: bool = False  # Si True, usa modelos -seg y máscaras
-    
-    def __post_init__(self):
-        if self.vehicle_classes is None:
-            self.vehicle_classes = DEFAULT_VEHICLE_CLASSES.copy()
+from ..config.settings import DetectorConfig, DEFAULT_VEHICLE_CLASSES
 
 
 class YOLODetector:
@@ -203,9 +191,16 @@ class YOLODetector:
             if cls_id not in self.vehicle_classes:
                 continue
             
-            if conf < self.config.confidence_threshold:
-                continue
+            # Obtener umbral específico o general
+            cls_name = self.vehicle_classes[int(cls_id)]
+            threshold = self.config.confidence_threshold
             
+            if self.config.class_thresholds and cls_name in self.config.class_thresholds:
+                threshold = self.config.class_thresholds[cls_name]
+                
+            if conf < threshold:
+                continue
+                
             x1, y1, x2, y2 = box.astype(int)
             
             detection = Detection(

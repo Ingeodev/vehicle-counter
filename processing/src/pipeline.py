@@ -77,8 +77,9 @@ class VideoPipeline:
                 device=self.config.detector.device,
                 vehicle_classes=self.config.detector.vehicle_classes,
                 confidence_threshold=self.config.detector.confidence_threshold,
-                tracker_config="botsort_vehicles.yaml",
-                use_segmentation=(self.config.detector.strategy == "seg")
+                strategy=self.config.detector.strategy,
+                class_thresholds=self.config.detector.class_thresholds,
+                tracker_config="botsort_vehicles.yaml"
             )
             
             if self.config.detector.strategy == "seg":
