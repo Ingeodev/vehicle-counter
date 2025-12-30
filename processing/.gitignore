@@ -1,0 +1,56 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# YOLO models (descargar localmente)
+*.pt
+*.onnx
+
+# Videos y archivos multimedia (muy grandes)
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Imágenes de salida
+results/
+
+# Logs y CSVs generados
+*.log
+*_detections.csv
+*_summary.csv
+*_processed.mp4
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Secrets / credentials
+*.json
+!zones*.json
+credentials/
+
+# Temporary files
+*.tmp
+*.temp
