@@ -84,7 +84,16 @@ class FrameDeblurrer:
             bilateral_d = 7
             use_clahe = True
             clahe_clip_limit = 3.0
+            use_clahe = True
+            clahe_clip_limit = 3.0
             sharpen_strength = "strong"
+        elif mode == "enhance_only":
+            # Modo solo mejora de luz/contraste (sin deblurring/sharpening agresivo)
+            use_bilateral = False
+            use_clahe = True
+            clahe_clip_limit = 3.0
+            sharpen_strength = "soft"  # Muy suave o ninguno
+            gamma_correction = 1.4
         
         self.use_bilateral = use_bilateral
         self.bilateral_d = bilateral_d
@@ -182,6 +191,11 @@ class FrameDeblurrer:
             clahe_clip_limit=2.0,
             sharpen_strength="soft"
         )
+    
+    @classmethod
+    def create_night_enhance(cls) -> "FrameDeblurrer":
+        """Config para mejorar visibilidad nocturna sin distorsionar (para segmentación)."""
+        return cls(mode="enhance_only")
 
 
 def deblur_frame(frame: np.ndarray, mode: str = "night") -> np.ndarray:

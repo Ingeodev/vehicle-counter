@@ -12,6 +12,7 @@ from .config import PipelineConfig, OutputConfig
 from .storage import StorageReader, StorageWriter, LocalStorageReader, LocalStorageWriter
 from .data import VideoSource, VideoInfo, DirectoryScanner, ProcessingResult
 from .processing import YOLODetector, DetectorConfig, VehicleTracker, ZoneManager, MaskManager, TrackDeduplicator, VehicleCounter, CounterConfig
+from .processing.segmenter import YOLOSegmenter
 from .output import AnnotatedVideoWriter, VideoWriterConfig, CSVExporter, Visualizer
 from .utils import FrameDeblurrer, format_timestamp
 
@@ -68,17 +69,23 @@ class VideoPipeline:
         self.csv_exporter = CSVExporter(self.writer)
     
     @property
-    def detector(self) -> YOLODetector:
-        """Obtiene o crea el detector YOLO."""
+    def detector(self) -> YOLODetector | YOLOSegmenter:
+        """Obtiene o crea el detector (Box o Seg)."""
         if self._detector is None:
             detector_config = DetectorConfig(
                 model_path=self.config.detector.model_path,
                 device=self.config.detector.device,
                 vehicle_classes=self.config.detector.vehicle_classes,
                 confidence_threshold=self.config.detector.confidence_threshold,
-                tracker_config="botsort_vehicles.yaml"  # Usar tracker optimizado
+                tracker_config="botsort_vehicles.yaml",
+                use_segmentation=(self.config.detector.strategy == "seg")
             )
-            self._detector = YOLODetector(detector_config)
+            
+            if self.config.detector.strategy == "seg":
+                self._detector = YOLOSegmenter(detector_config)
+            else:
+                self._detector = YOLODetector(detector_config)
+                
         return self._detector
     
     def process_video(
@@ -90,7 +97,8 @@ class VideoPipeline:
         output_name: str | None = None,
         base_time: str = "00:00",
         on_progress: Callable[[int, int, float], None] | None = None,
-        enable_deblurring: bool = False
+        enable_deblurring: bool = False,
+        enable_night_enhance: bool = False
     ) -> ProcessingResult:
         """
         Procesa un video completo.
@@ -217,18 +225,22 @@ class VideoPipeline:
             # Procesar frames
             resize = (new_width, new_height) if reduce_factor > 1 else None
             
-            # Crear deblurrer si está habilitado
-            deblurrer = FrameDeblurrer.create_aggressive() if enable_deblurring else None
-            if deblurrer and out_cfg.verbose:
-                print("🌃 Deblurring activado (modo agresivo para video nocturno)")
+            # Preparar mejora de imagen
+            enhancer = None
+            if enable_night_enhance:
+                enhancer = FrameDeblurrer.create_night_enhance()
+                if out_cfg.verbose: print("🌙 Night Enhance activado (Gamma + CLAHE)")
+            elif enable_deblurring:
+                enhancer = FrameDeblurrer.create_aggressive()
+                if out_cfg.verbose: print("🌃 Deblurring activado (Agresivo)")
             
             for frame_data in video.frames(max_frames=max_frames, resize=resize):
                 frame = frame_data.frame
                 timestamp = frame_data.timestamp_seconds
                 
-                # Aplicar deblurring si está habilitado
-                if deblurrer:
-                    frame = deblurrer.process(frame)
+                # Aplicar mejora si está habilitada
+                if enhancer:
+                    frame = enhancer.process(frame)
                 
                 # Detectar y trackear
                 detections = counter.process_frame(frame, timestamp, base_time)

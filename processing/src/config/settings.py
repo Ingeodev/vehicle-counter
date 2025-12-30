@@ -35,6 +35,8 @@ class DetectorConfig:
     model_path: str = "yolov8s.pt"
     device: str = "cpu"
     confidence_threshold: float = 0.5
+    strategy: str = "box"  # 'box' o 'seg'
+    tracker_config: str | None = None
     vehicle_classes: dict[int, str] = field(default_factory=lambda: DEFAULT_VEHICLE_CLASSES.copy())
 
 
@@ -121,6 +123,8 @@ class PipelineConfig:
                 "model_path": self.detector.model_path,
                 "device": self.detector.device,
                 "confidence_threshold": self.detector.confidence_threshold,
+                "strategy": self.detector.strategy,
+                "tracker_config": self.detector.tracker_config,
                 "vehicle_classes": self.detector.vehicle_classes,
             },
             "output": {

@@ -95,10 +95,15 @@ class Detection:
     class_name: str
     bbox: BoundingBox
     confidence: float = 1.0
+    mask: np.ndarray | None = None  # Máscara binaria (segmentación)
+    mask_polygon: np.ndarray | None = None  # Polígono (N, 2)
+    mask_center: tuple[int, int] | None = None  # Centroide calculado desde la máscara
     
     @property
     def center(self) -> tuple[int, int]:
-        """Centro de la detección."""
+        """Centro de la detección (prioriza centroide de máscara si existe)."""
+        if self.mask_center is not None:
+            return self.mask_center
         return self.bbox.center
 
 

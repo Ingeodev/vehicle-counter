@@ -31,6 +31,7 @@ class DetectorConfig:
     vehicle_classes: dict[int, str] | None = None
     confidence_threshold: float = 0.5
     tracker_config: str | None = None  # Ruta a config de tracker (e.g. botsort.yaml)
+    use_segmentation: bool = False  # Si True, usa modelos -seg y máscaras
     
     def __post_init__(self):
         if self.vehicle_classes is None:

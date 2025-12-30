@@ -139,14 +139,33 @@ class Visualizer:
         # Color según estado de zonas
         color = self.box_color_with_zone if has_zones else self.box_color_no_zone
         
-        # Dibujar caja
-        cv2.rectangle(
-            frame,
-            (bbox.x1, bbox.y1),
-            (bbox.x2, bbox.y2),
-            color,
-            self.line_thickness
-        )
+        # Dibujar polígono si existe (segmentación)
+        if detection.mask_polygon is not None:
+            # Crear overlay para transparencia
+            overlay = frame.copy()
+            cv2.fillPoly(overlay, [detection.mask_polygon], color)
+            cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
+            
+            # Borde del polígono
+            cv2.polylines(frame, [detection.mask_polygon], True, color, 2)
+            
+            # Caja más sutil
+            cv2.rectangle(
+                frame,
+                (bbox.x1, bbox.y1),
+                (bbox.x2, bbox.y2),
+                color,
+                1
+            )
+        else:
+            # Dibujar caja normal
+            cv2.rectangle(
+                frame,
+                (bbox.x1, bbox.y1),
+                (bbox.x2, bbox.y2),
+                color,
+                self.line_thickness
+            )
         
         # Dibujar centro
         cx, cy = detection.center

@@ -40,6 +40,10 @@ Ejemplos:
     process_parser.add_argument("--reduce", "-r", type=int, default=1,
                                help="Factor de reducción de resolución")
     process_parser.add_argument("--max-minutes", type=float, help="Límite de minutos a procesar")
+    process_parser.add_argument("--strategy",choices=["box", "seg"], default="box",
+                               help="Estrategia de detección: 'box' (cajas) o 'seg' (segmentación)")
+    process_parser.add_argument("--night-enhance", action="store_true",
+                               help="Mejorar visibilidad nocturna (Gamma + CLAHE) sin distorsión")
     process_parser.add_argument("--no-video", action="store_true", help="No guardar video de salida")
     process_parser.add_argument("--deblurring", action="store_true", 
                                help="Aplicar deblurring agresivo (para videos nocturnos con motion blur)")
@@ -91,6 +95,7 @@ def cmd_process(args):
     config.output.save_video = not args.no_video
     config.output.verbose = not args.quiet
     config.output.output_folder = args.output
+    config.detector.strategy = args.strategy
     
     # Crear pipeline
     pipeline = VideoPipeline(config)
@@ -103,7 +108,8 @@ def cmd_process(args):
             mask_path=args.mask,
             output_folder=args.output,
             base_time=args.base_time,
-            enable_deblurring=args.deblurring
+            enable_deblurring=args.deblurring,
+            enable_night_enhance=args.night_enhance
         )
         
         if not args.quiet:
