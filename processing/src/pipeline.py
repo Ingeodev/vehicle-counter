@@ -11,7 +11,7 @@ import numpy as np
 from .config import PipelineConfig, OutputConfig
 from .storage import StorageReader, StorageWriter, LocalStorageReader, LocalStorageWriter
 from .data import VideoSource, VideoInfo, DirectoryScanner, ProcessingResult
-from .processing import YOLODetector, DetectorConfig, VehicleTracker, ZoneManager, VehicleCounter, CounterConfig
+from .processing import YOLODetector, DetectorConfig, VehicleTracker, ZoneManager, MaskManager, VehicleCounter, CounterConfig
 from .output import AnnotatedVideoWriter, VideoWriterConfig, CSVExporter, Visualizer
 
 
@@ -116,6 +116,11 @@ class VideoPipeline:
         if zones_path and self.reader.exists(zones_path):
             zone_manager.load_from_json(self.reader, zones_path)
         
+        # Crear mask manager si hay máscara
+        mask_manager = MaskManager()
+        if mask_path and self.reader.exists(mask_path):
+            mask_manager.load_from_path(self.reader.get_video_path(mask_path))
+        
         # Crear video info
         video_info = VideoInfo(
             path=video_path,
@@ -148,6 +153,10 @@ class VideoPipeline:
                     video.width, video.height,
                     new_width, new_height
                 )
+            
+            # Redimensionar máscara al tamaño del frame de procesamiento
+            if mask_manager.is_loaded:
+                mask_manager.resize_to_frame(new_width, new_height)
             
             # Calcular frames a procesar
             if cfg.video.max_minutes is not None and cfg.video.max_minutes > 0:
@@ -204,6 +213,10 @@ class VideoPipeline:
                 
                 # Detectar y trackear
                 detections = counter.process_frame(frame, timestamp, base_time)
+                
+                # Filtrar detecciones con máscara
+                if mask_manager.is_loaded:
+                    detections = mask_manager.filter_detections(detections)
                 
                 # Visualizar si guardamos video
                 if video_writer:

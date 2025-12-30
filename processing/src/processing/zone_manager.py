@@ -127,7 +127,9 @@ class ZoneManager:
         Returns:
             True si el punto está dentro
         """
-        return cv2.pointPolygonTest(zone.points, point, False) >= 0
+        # OpenCV requiere tupla de floats
+        pt = (float(point[0]), float(point[1]))
+        return cv2.pointPolygonTest(zone.points, pt, False) >= 0
     
     def check_entry(
         self,

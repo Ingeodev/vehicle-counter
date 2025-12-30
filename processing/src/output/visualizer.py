@@ -2,7 +2,7 @@
 Visualizer - Dibujo de anotaciones en frames.
 """
 
-from typing import Sequence
+from typing import Sequence, Callable, Any
 
 import cv2
 import numpy as np
@@ -193,8 +193,8 @@ class Visualizer:
         self,
         frame: np.ndarray,
         detections: Sequence[Detection],
-        get_zones: callable | None = None,
-        get_trajectory: callable | None = None
+        get_zones: Callable[[int], list[str] | None] | None = None,
+        get_trajectory: Callable[[int], np.ndarray | None] | None = None
     ) -> np.ndarray:
         """
         Dibuja múltiples detecciones.
