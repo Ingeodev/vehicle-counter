@@ -65,6 +65,29 @@ python -m src.cli process input/video.mp4 --zones zonas.json [opciones]
 | `--deblurring` | - | No | Aplica filtro agresivo para corregir motion blur. | `False` |
 | `--no-video` | - | No | Si se activa, NO genera el video de salida (solo CSVs). | `False` |
 
+#### ⚙️ Configuración del Modelo (`--model-config`)
+Puedes personalizar las clases a detectar y sus umbrales creando un archivo YAML (ej. `config.yml`):
+
+```yaml
+# Umbral global por defecto
+default_threshold: 0.5
+
+# Umbrales específicos por clase
+class_thresholds:
+  car: 0.6
+  person: 0.4
+
+# Clases a detectar (ID COCO: Nombre)
+# Si se define, sobrescribe las clases por defecto
+vehicle_classes:
+  0: person
+  1: bicycle
+  2: car
+  3: motorcycle
+  5: bus
+  7: truck
+```
+
 #### 📤 Outputs (Salida)
 | Archivo | Descripción |
 |---------|-------------|

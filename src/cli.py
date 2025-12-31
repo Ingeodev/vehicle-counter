@@ -155,6 +155,9 @@ def cmd_process(args):
                 
             if "class_thresholds" in model_params:
                 config.detector.class_thresholds = model_params["class_thresholds"]
+
+            if "vehicle_classes" in model_params:
+                config.detector.vehicle_classes = {int(k): str(v) for k, v in model_params["vehicle_classes"].items()}
                 
             if not args.quiet:
                 print(f"✅ Configuración de modelo cargada desde: {args.model_config}")
@@ -219,6 +222,9 @@ def cmd_scan(args):
                 
             if "class_thresholds" in model_params:
                 config.detector.class_thresholds = model_params["class_thresholds"]
+
+            if "vehicle_classes" in model_params:
+                config.detector.vehicle_classes = {int(k): str(v) for k, v in model_params["vehicle_classes"].items()}
                 
             if not args.quiet:
                 print(f"✅ Configuración de modelo cargada desde: {args.model_config}")
