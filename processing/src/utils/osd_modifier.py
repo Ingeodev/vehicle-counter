@@ -106,8 +106,8 @@ class OSDModifier:
         # Vamos a añadir un pequeño margen a la izquierda
         x_text = x + int(width * 0.005)
         # Y centrar verticalmente en la zona
-        # Ajuste visual hacia abajo (+0.15 de altura, subiendo un poco respecto al 0.2 anterior)
-        y_text = y + (zone_h - font_size) // 2 + int(font_size * 0.15)
+        # Ajuste visual (subido ~5% respecto al 0.15 anterior para alinear con la hora)
+        y_text = y + (zone_h - font_size) // 2 + int(font_size * 0.10)
         
         # IMPORTANTE: Extraer brillo del frame ORIGINAL (no inpainted)
         gray_original = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -124,11 +124,16 @@ class OSDModifier:
             except:
                 char_w = font_size // 2
                 char_h = font_size
-            char_metrics.append((char, char_w, char_h))
-            total_width += char_w
+            # Estirar horizontalmente (1.166 * 1.1 = 1.28)
+            char_w_stretched = int(char_w * 1.28)
+            char_metrics.append((char, char_w_stretched, char_h))
+            total_width += char_w_stretched
         
         # Dibujar cada carácter con su color óptimo
         current_x = x_text
+        char_index = 0
+        day_start_index = len(new_date_text) - 3  # Últimos 3 caracteres son el día (Wed, Mon, etc.)
+        
         for char, char_w, char_h in char_metrics:
             # Definir ROI pequeño alrededor del carácter (solo lo necesario)
             roi_x1 = max(0, current_x)
@@ -149,11 +154,14 @@ class OSDModifier:
             else:
                 char_color = (255, 255, 255)
             
-            # Dibujar este carácter
-            draw.text((current_x, y_text), char, font=font, fill=char_color)
+            # Dibujar este carácter con NEGRITA simulada (para todo el texto)
+            # Bold simulation: dibujar en posiciones +1px horizontalmente
+            for dx in [0, 1]:
+                draw.text((current_x + dx, y_text), char, font=font, fill=char_color)
             
             # Avanzar posición X
             current_x += char_w
+            char_index += 1
         
         # Convertir vuelta a BGR
         return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
