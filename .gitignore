@@ -54,3 +54,6 @@ credentials/
 # Temporary files
 *.tmp
 *.temp
+debug_trocr/
+debug_rois/
+debug_rois_enhanced/

@@ -89,6 +89,19 @@ Ejemplos:
     fix_parser.add_argument("--font", help="Ruta fuente .ttf personalizada")
     fix_parser.add_argument("--quiet", "-q", action="store_true")
     
+    # Comando: extract-time
+    extract_parser = subparsers.add_parser("extract-time", help="Extraer fecha/hora del OSD de videos")
+    extract_parser.add_argument("video", nargs="+", help="Video(s) de entrada")
+    extract_parser.add_argument("--model", "-m", choices=["tesseract", "easyocr", "trocr"], default="easyocr",
+                               help="Motor OCR a usar (default: easyocr)")
+    extract_parser.add_argument("--preprocess", "-p", choices=["clahe", "binary", "color"], default="clahe",
+                               help="Modo de preprocesamiento (default: clahe)")
+    extract_parser.add_argument("--output", "-o", help="Archivo CSV de salida (opcional)")
+    extract_parser.add_argument("--export-roi", help="Directorio para guardar ROIs procesados (debug)")
+    extract_parser.add_argument("--quiet", "-q", action="store_true")
+    
+    
+    
     args = parser.parse_args()
     
     if args.command is None:
@@ -104,6 +117,8 @@ Ejemplos:
         return cmd_info(args)
     elif args.command == "fix-osd":
         return cmd_fix_osd(args)
+    elif args.command == "extract-time":
+        return cmd_extract_time(args)
     
     return 0
 
@@ -372,5 +387,73 @@ def cmd_fix_osd(args):
     return 0
 
 
+def cmd_extract_time(args):
+    """Comando: extraer fecha/hora del OSD de videos."""
+    from .utils.osd_reader import OSDReader, format_duration
+    import csv
+    
+    if not args.quiet:
+        print(f"🔍 Extrayendo información de tiempo con OCR ({args.model}, {args.preprocess})...")
+        if len(args.video) > 1:
+            print(f"   Procesando {len(args.video)} videos...")
+        if args.export_roi:
+            print(f"   Exportando ROIs a: {args.export_roi}")
+    
+    # Crear reader con el motor y preprocesamiento seleccionados
+    try:
+        reader = OSDReader(ocr_engine=args.model, preprocess=args.preprocess)
+    except ImportError as e:
+        print(f"❌ Error: {e}", file=sys.stderr)
+        return 1
+    
+    # Procesar videos
+    results = reader.extract_multiple(args.video, export_roi_dir=args.export_roi)
+    
+    
+    # Mostrar resultados
+    if not args.quiet:
+        print("\n" + "=" * 80)
+        print(f"{'Video':<40} {'Fecha':<12} {'Inicio':<10} {'Fin':<10} {'Duración':<10}")
+        print("=" * 80)
+        
+        for info in results:
+            # Truncar nombre de video si es muy largo
+            video_name = Path(info.path).name
+            if len(video_name) > 38:
+                video_name = video_name[:35] + "..."
+            
+            duration_str = format_duration(info.duration)
+            
+            print(f"{video_name:<40} {info.date:<12} {info.start_time:<10} {info.end_time:<10} {duration_str:<10}")
+        
+        print("=" * 80)
+    
+    # Exportar a CSV si se especifica
+    if args.output:
+        try:
+            with open(args.output, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['video', 'date', 'start_time', 'end_time', 'duration'])
+                
+                for info in results:
+                    writer.writerow([
+                        info.path,
+                        info.date,
+                        info.start_time,
+                        info.end_time,
+                        format_duration(info.duration)
+                    ])
+            
+            if not args.quiet:
+                print(f"\n💾 Resultados exportados a: {args.output}")
+                
+        except IOError as e:
+            print(f"❌ Error escribiendo CSV: {e}", file=sys.stderr)
+            return 1
+    
+    return 0
+
+
 if __name__ == "__main__":
     sys.exit(main())
+
