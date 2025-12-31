@@ -110,39 +110,42 @@ class OSDModifier:
         y_text = y + (zone_h - font_size) // 2 + int(font_size * 0.15)
         
         # IMPORTANTE: Extraer brillo del frame ORIGINAL (no inpainted)
-        gray_original = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        gray_original = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # --- ENFOQUE: Color POR CARÁCTER ---
-        # Dibujamos cada carácter individualmente con su color óptimo
-        current_x = x_text
+        # --- ENFOQUE OPTIMIZADO: Color POR CARÁCTER con ROIs pequeños ---
+        # Pre-calcular métricas de caracteres una sola vez
+        char_metrics = []
+        total_width = 0
         for char in new_date_text:
-            # Crear máscara temporal para este carácter
-            char_mask_img = Image.new('L', (width, height), 0)
-            char_mask_draw = ImageDraw.Draw(char_mask_img)
-            char_mask_draw.text((current_x, y_text), char, font=font, fill=255)
-            
-            # Obtener bounding box del carácter para avanzar X
             try:
-                char_bbox = font.getbbox(char)
-                char_width = char_bbox[2] - char_bbox[0]
+                bbox = font.getbbox(char)
+                char_w = bbox[2] - bbox[0]
+                char_h = bbox[3] - bbox[1]
             except:
-                char_width = font_size // 2  # Fallback
+                char_w = font_size // 2
+                char_h = font_size
+            char_metrics.append((char, char_w, char_h))
+            total_width += char_w
+        
+        # Dibujar cada carácter con su color óptimo
+        current_x = x_text
+        for char, char_w, char_h in char_metrics:
+            # Definir ROI pequeño alrededor del carácter (solo lo necesario)
+            roi_x1 = max(0, current_x)
+            roi_y1 = max(0, y_text)
+            roi_x2 = min(width, current_x + char_w + 2)
+            roi_y2 = min(height, y_text + font_size + 2)
             
-            # Normalizar máscara
-            char_mask_np = np.array(char_mask_img).astype(np.float32) / 255.0
-            
-            # Multiplicar con imagen original
-            weighted = char_mask_np * gray_original
-            mask_sum = np.sum(char_mask_np)
-            
-            if mask_sum > 0:
-                avg_char_brightness = np.sum(weighted) / mask_sum
+            # Extraer brillo promedio del ROI pequeño (muy rápido)
+            if roi_x2 > roi_x1 and roi_y2 > roi_y1:
+                roi_gray = gray_original[roi_y1:roi_y2, roi_x1:roi_x2]
+                avg_brightness = np.mean(roi_gray)
                 
-                # Elegir color para este carácter
-                if avg_char_brightness > 127:
-                    char_color = (0, 0, 0)  # Negro
+                # Elegir color
+                if avg_brightness > 127:
+                    char_color = (0, 0, 0)  # Negro sobre fondo claro
                 else:
-                    char_color = (255, 255, 255)  # Blanco
+                    char_color = (255, 255, 255)  # Blanco sobre fondo oscuro
             else:
                 char_color = (255, 255, 255)
             
@@ -150,7 +153,7 @@ class OSDModifier:
             draw.text((current_x, y_text), char, font=font, fill=char_color)
             
             # Avanzar posición X
-            current_x += char_width
+            current_x += char_w
         
         # Convertir vuelta a BGR
         return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
