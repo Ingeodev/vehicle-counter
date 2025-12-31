@@ -80,9 +80,14 @@ Ejemplos:
     scan_parser.add_argument("--yes", "-y", action="store_true", help="Confirmar automáticamente sin preguntar")
     scan_parser.add_argument("--quiet", "-q", action="store_true")
     
-    # Comando: info
-    info_parser = subparsers.add_parser("info", help="Mostrar información de un video")
-    info_parser.add_argument("video", help="Ruta al video")
+    # Comando: fix-osd
+    fix_parser = subparsers.add_parser("fix-osd", help="Corregir fecha en OSD (Inpainting)")
+    fix_parser.add_argument("video", help="Video de entrada")
+    fix_parser.add_argument("--date", required=True, help="Nueva fecha (YYYY-MM-DD)")
+    fix_parser.add_argument("--output", "-o", help="Archivo de salida (default: video_fixed.mp4)")
+    fix_parser.add_argument("--max-minutes", type=float, help="Límite de minutos a procesar")
+    fix_parser.add_argument("--font", help="Ruta fuente .ttf personalizada")
+    fix_parser.add_argument("--quiet", "-q", action="store_true")
     
     args = parser.parse_args()
     
@@ -97,6 +102,8 @@ Ejemplos:
         return cmd_scan(args)
     elif args.command == "info":
         return cmd_info(args)
+    elif args.command == "fix-osd":
+        return cmd_fix_osd(args)
     
     return 0
 
@@ -268,6 +275,100 @@ def cmd_info(args):
     print(f"   Frames: {frames}")
     print(f"   Duración: {duration / 60:.1f} minutos")
     
+    return 0
+
+
+def cmd_fix_osd(args):
+    """Comando: corregir OSD en video."""
+    import cv2
+    from tqdm import tqdm
+    from .utils.osd_modifier import OSDModifier
+    
+    input_path = args.video
+    output_path = args.output
+    
+    if not output_path:
+        import os
+        base_name = os.path.basename(input_path)
+        output_path = base_name.replace(".mp4", "_fixed.mp4")
+        if output_path == base_name: # Prevent replacement
+            output_path = "fixed_" + base_name
+            
+    if not args.quiet:
+        print(f"🔧 Corrigiendo OSD en: {input_path}")
+        print(f"📅 Nueva fecha: {args.date}")
+        print(f"💾 Salida: {output_path}")
+        
+    cap = cv2.VideoCapture(input_path)
+    if not cap.isOpened():
+        print("❌ Error abriendo video", file=sys.stderr)
+        return 1
+        
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # Limitar frames si se especifica max-minutes
+    max_frames = total_frames
+    if args.max_minutes is not None and args.max_minutes > 0:
+        max_frames_limit = int(args.max_minutes * 60 * fps)
+        max_frames = min(total_frames, max_frames_limit)
+    
+    # Writer
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
+    modifier = OSDModifier(font_path=args.font)
+    
+    # Procesar fecha para añadir día de la semana (Ej: 31-12-2025 -> 31-12-2025 Wed)
+    from datetime import datetime
+    import locale
+    
+    try:
+        # Forzar locale inglés para el día de la semana
+        original_locale = locale.getlocale(locale.LC_TIME)
+        locale.setlocale(locale.LC_TIME, 'C') 
+        
+        # Asumimos formato DD-MM-YYYY como en el input
+        dt = datetime.strptime(args.date, "%d-%m-%Y")
+        day_name = dt.strftime("%a") # Mon, Tue, Wed...
+        
+        new_date = f"{args.date} {day_name}"
+        
+        # Restaurar locale (buena práctica)
+        # locale.setlocale(locale.LC_TIME, original_locale) 
+    except ValueError:
+        # Si falla el parseo (otro formato), usar el string original
+        print(f"⚠️ Formato de fecha no reconocido (esperado DD-MM-YYYY), usando texto original: {args.date}")
+        new_date = args.date
+        
+    if not args.quiet:
+        print(f"📅 Texto OSD final: '{new_date}'")
+    
+    processed_count = 0
+    try:
+        pbar = tqdm(total=max_frames, unit="frames", disable=args.quiet)
+        
+        while processed_count < max_frames:
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            fixed_frame = modifier.process_frame(frame, new_date)
+            out.write(fixed_frame)
+            processed_count += 1
+            pbar.update(1)
+            
+        pbar.close()
+        
+    finally:
+        cap.release()
+        out.release()
+        
+    if not args.quiet:
+        print("✅ Corrección completada")
+        
     return 0
 
 
