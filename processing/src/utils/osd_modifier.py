@@ -109,11 +109,48 @@ class OSDModifier:
         # Ajuste visual hacia abajo (+0.15 de altura, subiendo un poco respecto al 0.2 anterior)
         y_text = y + (zone_h - font_size) // 2 + int(font_size * 0.15)
         
-        # Dibujar texto (Solo blanco, sin borde)
-        text_color = (255, 255, 255)
+        # IMPORTANTE: Extraer brillo del frame ORIGINAL (no inpainted)
+        gray_original = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
         
-        # Texto principal
-        draw.text((x_text, y_text), new_date_text, font=font, fill=text_color)
+        # --- ENFOQUE: Color POR CARÁCTER ---
+        # Dibujamos cada carácter individualmente con su color óptimo
+        current_x = x_text
+        for char in new_date_text:
+            # Crear máscara temporal para este carácter
+            char_mask_img = Image.new('L', (width, height), 0)
+            char_mask_draw = ImageDraw.Draw(char_mask_img)
+            char_mask_draw.text((current_x, y_text), char, font=font, fill=255)
+            
+            # Obtener bounding box del carácter para avanzar X
+            try:
+                char_bbox = font.getbbox(char)
+                char_width = char_bbox[2] - char_bbox[0]
+            except:
+                char_width = font_size // 2  # Fallback
+            
+            # Normalizar máscara
+            char_mask_np = np.array(char_mask_img).astype(np.float32) / 255.0
+            
+            # Multiplicar con imagen original
+            weighted = char_mask_np * gray_original
+            mask_sum = np.sum(char_mask_np)
+            
+            if mask_sum > 0:
+                avg_char_brightness = np.sum(weighted) / mask_sum
+                
+                # Elegir color para este carácter
+                if avg_char_brightness > 127:
+                    char_color = (0, 0, 0)  # Negro
+                else:
+                    char_color = (255, 255, 255)  # Blanco
+            else:
+                char_color = (255, 255, 255)
+            
+            # Dibujar este carácter
+            draw.text((current_x, y_text), char, font=font, fill=char_color)
+            
+            # Avanzar posición X
+            current_x += char_width
         
         # Convertir vuelta a BGR
         return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
