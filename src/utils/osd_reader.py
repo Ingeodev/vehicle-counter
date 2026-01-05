@@ -93,31 +93,40 @@ class TrOCRStrategy(OCRStrategy):
     Requiere 'transformers' y 'torch'.
     """
     
+    # Class-level cache to avoid reloading model on every instance
+    _cached_processor = None
+    _cached_model = None
+    _cached_device = None
+
     def __init__(self, model_name: str = "microsoft/trocr-base-printed"):
         self.model_name = model_name
-        self._processor = None
-        self._model = None
         
     def _load_model(self):
-        if self._model is None:
+        # Check class-level cache
+        if TrOCRStrategy._cached_model is None:
             try:
                 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
                 import torch
                 
                 print(f"⏳ Cargando modelo TrOCR ({self.model_name})... esto puede tardar la primera vez.")
-                self._processor = TrOCRProcessor.from_pretrained(self.model_name)
-                self._model = VisionEncoderDecoderModel.from_pretrained(self.model_name)
+                TrOCRStrategy._cached_processor = TrOCRProcessor.from_pretrained(self.model_name)
+                TrOCRStrategy._cached_model = VisionEncoderDecoderModel.from_pretrained(self.model_name)
                 
                 # Mover a GPU si está disponible
-                self.device = "cuda" if torch.cuda.is_available() else "cpu"
-                self._model.to(self.device)
-                print(f"✅ Modelo TrOCR cargado en {self.device}")
+                TrOCRStrategy._cached_device = "cuda" if torch.cuda.is_available() else "cpu"
+                TrOCRStrategy._cached_model.to(TrOCRStrategy._cached_device)
+                print(f"✅ Modelo TrOCR cargado en {TrOCRStrategy._cached_device}")
                 
             except ImportError:
                 raise ImportError(
                     "Librerías de TrOCR no instaladas. "
                     "Instala con: pip install transformers torch torchvision"
                 )
+        
+        # Assign local references for convenience
+        self._processor = TrOCRStrategy._cached_processor
+        self._model = TrOCRStrategy._cached_model
+        self.device = TrOCRStrategy._cached_device
     
     def recognize_text(self, image: np.ndarray) -> str:
         self._load_model()
