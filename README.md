@@ -43,7 +43,7 @@ pip install transformers torch torchvision
 El paquete expone funciones de alto nivel para usar en tus propios scripts o notebooks (Google Colab). Todas las funciones tienen tipado fuerte y autocompletado.
 
 ```python
-from src import fix_osd, process_video, extract_time
+from mglon_vehicle_counter import fix_osd, process_video, extract_time
 
 # 1. Corregir fecha en video (con conversión H.264/H.265)
 output = fix_osd(
@@ -85,7 +85,7 @@ Procesa un único archivo de video para detectar y contar vehículos.
 
 **Uso:**
 ```bash
-python -m src.cli process input/video.mp4 --zones zonas.json [opciones]
+aforos process input/video.mp4 --zones zonas.json [opciones]
 ```
 
 #### 📥 Inputs (Argumentos)
@@ -140,7 +140,7 @@ Escanéa recursivamente un directorio y procesa todos los videos encontrados.
 
 **Uso:**
 ```bash
-python -m src.cli scan input/videos/ --recursive --output ./results
+aforos scan input/videos/ --recursive --output ./results
 ```
 
 #### 📥 Inputs (Argumentos)
@@ -164,7 +164,7 @@ Extrae la fecha y hora impresa en el OSD (On-Screen Display) del video utilizand
 
 **Uso:**
 ```bash
-python -m src.cli extract-time input/video.mp4 --model trocr
+aforos extract-time input/video.mp4 --model trocr
 ```
 
 #### 📥 Inputs (Argumentos)
@@ -187,7 +187,7 @@ Corrige o reemplaza el texto de la fecha en el OSD del video mediante técnicas 
 
 **Uso:**
 ```bash
-python -m src.cli fix-osd video.mp4 --date 31-12-2025
+aforos fix-osd video.mp4 --date 31-12-2025
 ```
 
 #### 📥 Inputs (Argumentos)
@@ -212,7 +212,7 @@ Muestra metadatos técnicos rápidos de un archivo de video.
 
 **Uso:**
 ```bash
-python -m src.cli info video.mp4
+aforos info video.mp4
 ```
 
 #### 📤 Salida (Consola)
