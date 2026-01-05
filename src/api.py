@@ -52,6 +52,7 @@ def fix_osd(
     max_minutes: Optional[float] = None,
     font: Optional[str] = None,
     convert_h264: bool = False,
+    codec: Literal["copy", "h264", "h265"] = "copy",
     quiet: bool = False
 ) -> str:
     """
@@ -63,7 +64,8 @@ def fix_osd(
         output: Ruta de salida (default: video_fixed.mp4).
         max_minutes: Límite de minutos a procesar.
         font: Ruta a fuente TTF personalizada.
-        convert_h264: Convertir salida a H.264 usando ffmpeg.
+        convert_h264: (Deprecado) Usar codec='h264'.
+        codec: Codec de salida ('copy' para mp4v, 'h264', 'h265').
         quiet: Modo silencioso sin mensajes de progreso.
     
     Returns:
@@ -73,10 +75,11 @@ def fix_osd(
         VideoNotFoundError: Si el video de entrada no existe.
         VideoOpenError: Si el video no se puede abrir.
         OutputDirectoryError: Si no se puede crear el directorio de salida.
-        FFmpegNotFoundError: Si convert_h264=True y ffmpeg no está instalado.
+        FFmpegNotFoundError: Si se solicita conversión (h264/h265) y ffmpeg no está instalado.
+        FFmpegError: Si la conversión falla.
     
     Example:
-        >>> fix_osd("video.mp4", date="2026-01-05", convert_h264=True)
+        >>> fix_osd("video.mp4", date="2026-01-05", codec="h265")
         'video_fixed.mp4'
     """
     # Validar que el video existe
@@ -187,31 +190,49 @@ def fix_osd(
     if not quiet:
         print("✅ Corrección completada")
     
-    # Convertir a H.264 si se solicita
-    if convert_h264:
+    
+    if not quiet:
+        print("✅ Corrección completada")
+    
+    # Resolver codec final
+    target_codec = codec
+    if convert_h264 and target_codec == "copy":
+        target_codec = "h264"
+    
+    # Convertir si es necesario (h264 o h265)
+    if target_codec in ["h264", "h265"]:
+        encoder = "libx264" if target_codec == "h264" else "libx265"
+        suffix = f"_{target_codec}.mp4"
+        
         temp_path = output
-        final_path = output.replace(".mp4", "_h264.mp4")
+        final_path = output.replace(".mp4", suffix)
         if final_path == temp_path:
-            final_path = output.replace(".mp4", "") + "_h264.mp4"
+            final_path = output.replace(".mp4", "") + suffix
         
         if not quiet:
-            print("🔄 Convirtiendo a H.264 con ffmpeg...")
+            print(f"🔄 Convirtiendo a {target_codec.upper()} con ffmpeg ({encoder})...")
         
         try:
-            result = subprocess.run([
+            cmd = [
                 "ffmpeg", "-i", temp_path,
-                "-c:v", "libx264", "-crf", "23",
+                "-c:v", encoder, "-crf", "28" if target_codec == "h265" else "23",
                 "-c:a", "copy",
                 "-y", final_path
-            ], capture_output=True, text=True)
+            ]
+            
+            # H.265 necesita tag para compatibilidad con Apple
+            if target_codec == "h265":
+                cmd.extend(["-tag:v", "hvc1"])
+            
+            result = subprocess.run(cmd, capture_output=True, text=True)
             
             if result.returncode == 0:
                 os.remove(temp_path)
                 os.rename(final_path, output)
                 if not quiet:
-                    print(f"✅ Video H.264 guardado: {output}")
+                    print(f"✅ Video {target_codec.upper()} guardado: {output}")
             else:
-                raise FFmpegError("Error durante la conversión a H.264", result.stderr)
+                raise FFmpegError(f"Error durante la conversión a {target_codec.upper()}", result.stderr)
         except FileNotFoundError:
             raise FFmpegNotFoundError()
     

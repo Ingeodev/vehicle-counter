@@ -80,17 +80,17 @@ Ejemplos:
     scan_parser.add_argument("--yes", "-y", action="store_true", help="Confirmar automáticamente sin preguntar")
     scan_parser.add_argument("--quiet", "-q", action="store_true")
     
-    # Comando: fix-osd
-    fix_parser = subparsers.add_parser("fix-osd", help="Corregir fecha en OSD (Inpainting)")
+    # Comando:    # Fix OSD
+    fix_parser = subparsers.add_parser("fix-osd", help="Corregir fecha en OSD")
     fix_parser.add_argument("video", help="Video de entrada")
-    fix_parser.add_argument("--date", required=True, help="Nueva fecha (YYYY-MM-DD)")
-    fix_parser.add_argument("--output", "-o", help="Archivo de salida (default: video_fixed.mp4)")
-    fix_parser.add_argument("--max-minutes", type=float, help="Límite de minutos a procesar")
-    fix_parser.add_argument("--font", help="Ruta fuente .ttf personalizada")
-    fix_parser.add_argument("--convert-h264", action="store_true",
-                           help="Convertir salida a H.264 usando ffmpeg (recomendado)")
-    fix_parser.add_argument("--quiet", "-q", action="store_true")
-    
+    fix_parser.add_argument("--date", required=True, help="Nueva fecha (YYYY-MM-DD o DD-MM-YYYY)")
+    fix_parser.add_argument("--output", help="Video de salida")
+    fix_parser.add_argument("--minutes", type=float, help="Limitar minutos")
+    fix_parser.add_argument("--font", help="Ruta a fuente TTF")
+    fix_parser.add_argument("--convert-h264", action="store_true", help="(Deprecado) Usar --codec h264")
+    fix_parser.add_argument("--codec", choices=["copy", "h264", "h265"], default="copy", help="Codec de salida")
+    fix_parser.add_argument("--quiet", "-q", action="store_true", help="Modo silencioso")
+    fix_parser.set_defaults(func=cmd_fix_osd)
     # Comando: extract-time
     extract_parser = subparsers.add_parser("extract-time", help="Extraer fecha/hora del OSD de videos")
     extract_parser.add_argument("video", nargs="+", help="Video(s) de entrada")
@@ -302,158 +302,29 @@ def cmd_info(args):
 
 
 def cmd_fix_osd(args):
-    """Comando: corregir OSD en video."""
-    import cv2
-    from tqdm import tqdm
-    from .utils.osd_modifier import OSDModifier
-    
-    input_path = args.video
-    output_path = args.output
-    
-    if not output_path:
-        import os
-        base_name = os.path.basename(input_path)
-        output_path = base_name.replace(".mp4", "_fixed.mp4")
-        if output_path == base_name: # Prevent replacement
-            output_path = "fixed_" + base_name
-            
-    if not args.quiet:
-        print(f"🔧 Corrigiendo OSD en: {input_path}")
-        print(f"📅 Nueva fecha: {args.date}")
-        print(f"💾 Salida: {output_path}")
-        
-    cap = cv2.VideoCapture(input_path)
-    if not cap.isOpened():
-        print("❌ Error abriendo video", file=sys.stderr)
-        return 1
-        
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    # Limitar frames si se especifica max-minutes
-    max_frames = total_frames
-    if args.max_minutes is not None and args.max_minutes > 0:
-        max_frames_limit = int(args.max_minutes * 60 * fps)
-        max_frames = min(total_frames, max_frames_limit)
-    
-    # Writer
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    
-    # Usar fuente por defecto si no se especifica
-    font_path = args.font
-    if font_path is None:
-        default_font = Path(__file__).parent / "assets" / "AcPlus_IBM_VGA_8x16.ttf"
-        if default_font.exists():
-            font_path = str(default_font)
-    
-    modifier = OSDModifier(font_path=font_path)
-    
-    # Procesar fecha para añadir día de la semana (Ej: 31-12-2025 -> 31-12-2025 Wed)
-    from datetime import datetime
-    import locale
+    """
+    Función envoltorio para llamar a la API de fix_osd desde el CLI.
+    """
+    from src.api import fix_osd
+    from src.exceptions import AforosError
     
     try:
-        # Forzar locale inglés para el día de la semana
-        original_locale = locale.getlocale(locale.LC_TIME)
-        locale.setlocale(locale.LC_TIME, 'C') 
-        
-        # Intentar ambos formatos de fecha
-        dt = None
-        display_date = args.date
-        
-        # Formato YYYY-MM-DD -> convertir a DD-MM-YYYY para display
-        try:
-            dt = datetime.strptime(args.date, "%Y-%m-%d")
-            display_date = dt.strftime("%d-%m-%Y")
-        except ValueError:
-            pass
-        
-        # Formato DD-MM-YYYY (original)
-        if dt is None:
-            try:
-                dt = datetime.strptime(args.date, "%d-%m-%Y")
-                display_date = args.date
-            except ValueError:
-                pass
-        
-        if dt:
-            day_name = dt.strftime("%a")  # Mon, Tue, Wed...
-            new_date = f"{display_date} {day_name}"
-        else:
-            print(f"⚠️ Formato de fecha no reconocido (usar YYYY-MM-DD o DD-MM-YYYY): {args.date}")
-            new_date = args.date
-        
-        # Restaurar locale (buena práctica)
-        # locale.setlocale(locale.LC_TIME, original_locale) 
+        fix_osd(
+            video=args.video,
+            date=args.date,
+            output=args.output,
+            max_minutes=args.minutes,
+            font=args.font,
+            convert_h264=args.convert_h264,
+            codec=args.codec,
+            quiet=args.quiet
+        )
+    except AforosError as e:
+        print(f"❌ Error: {e}")
+        exit(1)
     except Exception as e:
-        # Si falla el parseo, usar el string original
-        print(f"⚠️ Error procesando fecha: {e}")
-        new_date = args.date
-        
-    if not args.quiet:
-        print(f"📅 Texto OSD final: '{new_date}'")
-    
-    processed_count = 0
-    try:
-        pbar = tqdm(total=max_frames, unit="frames", disable=args.quiet)
-        
-        while processed_count < max_frames:
-            ret, frame = cap.read()
-            if not ret:
-                break
-                
-            fixed_frame = modifier.process_frame(frame, new_date)
-            out.write(fixed_frame)
-            processed_count += 1
-            pbar.update(1)
-            
-        pbar.close()
-        
-    finally:
-        cap.release()
-        out.release()
-        
-    if not args.quiet:
-        print("✅ Corrección completada")
-    
-    # Convertir a H.264 si se solicita
-    if args.convert_h264:
-        import subprocess
-        import os
-        
-        # Archivo temporal y final
-        temp_path = output_path
-        final_path = output_path.replace(".mp4", "_h264.mp4")
-        if final_path == temp_path:
-            final_path = output_path.replace(".mp4", "") + "_h264.mp4"
-        
-        if not args.quiet:
-            print(f"🔄 Convirtiendo a H.264 con ffmpeg...")
-        
-        try:
-            result = subprocess.run([
-                "ffmpeg", "-i", temp_path,
-                "-c:v", "libx264", "-crf", "23",
-                "-c:a", "copy",
-                "-y", final_path
-            ], capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                # Reemplazar archivo original con H.264
-                os.remove(temp_path)
-                os.rename(final_path, output_path)
-                if not args.quiet:
-                    print(f"✅ Video H.264 guardado: {output_path}")
-            else:
-                print(f"⚠️ Error en ffmpeg: {result.stderr}", file=sys.stderr)
-                
-        except FileNotFoundError:
-            print("⚠️ ffmpeg no encontrado. Manteniendo video mp4v.", file=sys.stderr)
-        
-    return 0
+        print(f"❌ Error inesperado: {e}")
+        exit(1)
 
 
 def cmd_extract_time(args):
