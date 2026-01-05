@@ -404,15 +404,15 @@ def extract_time(
             export_path = os.path.join(export_roi, base_name)
         
         try:
-            time_info = reader.extract_video_times(video_path, export_roi_prefix=export_path)
+            time_info = reader.extract_video_times(video_path, export_roi_dir=export_path)
             
             result = {
                 "video": video_path,
-                "start_date": time_info.get("start_date", "Unknown"),
-                "start_time": time_info.get("start_time", "Unknown"),
-                "end_date": time_info.get("end_date", "Unknown"),
-                "end_time": time_info.get("end_time", "Unknown"),
-                "duration": time_info.get("duration", "Unknown"),
+                "start_date": time_info.date or "Unknown",
+                "start_time": time_info.start_time or "Unknown",
+                "end_date": time_info.date or "Unknown", # Note: VideoTimeInfo has single date, assuming same for start/end if not distinct in object
+                "end_time": time_info.end_time or "Unknown",
+                "duration": str(time_info.duration) or "Unknown",
             }
             results.append(result)
             
