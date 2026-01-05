@@ -20,6 +20,7 @@ Example:
 import cv2
 import subprocess
 import sys
+import os
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Literal
 from tqdm import tqdm
@@ -31,6 +32,17 @@ from .utils.osd_reader import OSDReader
 from .config import PipelineConfig
 from .pipeline import VideoPipeline
 from .data import ProcessingResult
+from .exceptions import (
+    AforosError,
+    VideoNotFoundError,
+    VideoOpenError,
+    ConfigurationError,
+    OutputDirectoryError,
+    ProcessingError,
+    FFmpegError,
+    FFmpegNotFoundError,
+    InvalidDateFormatError,
+)
 
 
 def fix_osd(
@@ -57,11 +69,19 @@ def fix_osd(
     Returns:
         Ruta al video de salida.
     
+    Raises:
+        VideoNotFoundError: Si el video de entrada no existe.
+        VideoOpenError: Si el video no se puede abrir.
+        OutputDirectoryError: Si no se puede crear el directorio de salida.
+        FFmpegNotFoundError: Si convert_h264=True y ffmpeg no está instalado.
+    
     Example:
         >>> fix_osd("video.mp4", date="2026-01-05", convert_h264=True)
         'video_fixed.mp4'
     """
-    import os
+    # Validar que el video existe
+    if not os.path.exists(video):
+        raise VideoNotFoundError(video)
     
     # Determinar ruta de salida
     if output is None:
@@ -69,6 +89,14 @@ def fix_osd(
         output = base_name.replace(".mp4", "_fixed.mp4")
         if output == base_name:
             output = "fixed_" + base_name
+    
+    # Crear directorio de salida si no existe
+    output_dir = os.path.dirname(output)
+    if output_dir and not os.path.exists(output_dir):
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+        except OSError as e:
+            raise OutputDirectoryError(output_dir, str(e))
     
     if not quiet:
         print(f"🔧 Corrigiendo OSD en: {video}")
@@ -78,7 +106,7 @@ def fix_osd(
     # Abrir video
     cap = cv2.VideoCapture(video)
     if not cap.isOpened():
-        raise ValueError(f"No se pudo abrir el video: {video}")
+        raise VideoOpenError(video)
     
     fps = cap.get(cv2.CAP_PROP_FPS)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -178,17 +206,14 @@ def fix_osd(
             ], capture_output=True, text=True)
             
             if result.returncode == 0:
-                import os
                 os.remove(temp_path)
                 os.rename(final_path, output)
                 if not quiet:
                     print(f"✅ Video H.264 guardado: {output}")
             else:
-                if not quiet:
-                    print(f"⚠️ Error en ffmpeg: {result.stderr}", file=sys.stderr)
+                raise FFmpegError("Error durante la conversión a H.264", result.stderr)
         except FileNotFoundError:
-            if not quiet:
-                print("⚠️ ffmpeg no encontrado. Manteniendo video mp4v.", file=sys.stderr)
+            raise FFmpegNotFoundError()
     
     return output
 
@@ -235,11 +260,27 @@ def process_video(
     Returns:
         ProcessingResult con estadísticas de detección.
     
+    Raises:
+        VideoNotFoundError: Si el video de entrada no existe.
+        ConfigurationError: Si el archivo model_config no existe o es inválido.
+        OutputDirectoryError: Si no se puede crear el directorio de salida.
+    
     Example:
         >>> result = process_video("video.mp4", zones="zones.json", device="cuda")
         >>> print(f"Detecciones: {result.total_detections}")
     """
     import yaml
+    
+    # Validar que el video existe
+    if not os.path.exists(video):
+        raise VideoNotFoundError(video)
+    
+    # Crear directorio de salida si no existe
+    if not os.path.exists(output):
+        try:
+            os.makedirs(output, exist_ok=True)
+        except OSError as e:
+            raise OutputDirectoryError(output, str(e))
     
     config = PipelineConfig()
     config.detector.device = device
@@ -253,8 +294,14 @@ def process_video(
     
     # Cargar config de modelo si existe
     if model_config:
-        with open(model_config, "r") as f:
-            model_params = yaml.safe_load(f)
+        if not os.path.exists(model_config):
+            raise ConfigurationError(f"Archivo de configuración no encontrado", model_config)
+        
+        try:
+            with open(model_config, "r") as f:
+                model_params = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            raise ConfigurationError(f"Error de sintaxis YAML: {e}", model_config)
         
         if "default_threshold" in model_params:
             config.detector.confidence_threshold = float(model_params["default_threshold"])
