@@ -30,6 +30,7 @@ from .utils.osd_modifier import OSDModifier
 from .utils.osd_reader import OSDReader
 from .config import PipelineConfig
 from .pipeline import VideoPipeline
+from .data import ProcessingResult
 
 
 def fix_osd(
@@ -209,7 +210,7 @@ def process_video(
     deblurring: bool = False,
     no_video: bool = False,
     quiet: bool = False
-) -> "ProcessingResult":
+) -> ProcessingResult:
     """
     Procesar un video con detección de vehículos.
     

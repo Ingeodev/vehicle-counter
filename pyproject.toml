@@ -55,4 +55,4 @@ packages = ["src", "src.config", "src.data", "src.output", "src.processing", "sr
 include-package-data = true
 
 [tool.setuptools.package-data]
-"src" = ["assets/*"]
+"src" = ["assets/*", "py.typed"]
