@@ -87,6 +87,8 @@ Ejemplos:
     fix_parser.add_argument("--output", "-o", help="Archivo de salida (default: video_fixed.mp4)")
     fix_parser.add_argument("--max-minutes", type=float, help="Límite de minutos a procesar")
     fix_parser.add_argument("--font", help="Ruta fuente .ttf personalizada")
+    fix_parser.add_argument("--convert-h264", action="store_true",
+                           help="Convertir salida a H.264 usando ffmpeg (recomendado)")
     fix_parser.add_argument("--quiet", "-q", action="store_true")
     
     # Comando: extract-time
@@ -340,7 +342,14 @@ def cmd_fix_osd(args):
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
     
-    modifier = OSDModifier(font_path=args.font)
+    # Usar fuente por defecto si no se especifica
+    font_path = args.font
+    if font_path is None:
+        default_font = Path(__file__).parent / "assets" / "AcPlus_IBM_VGA_8x16.ttf"
+        if default_font.exists():
+            font_path = str(default_font)
+    
+    modifier = OSDModifier(font_path=font_path)
     
     # Procesar fecha para añadir día de la semana (Ej: 31-12-2025 -> 31-12-2025 Wed)
     from datetime import datetime
@@ -351,17 +360,37 @@ def cmd_fix_osd(args):
         original_locale = locale.getlocale(locale.LC_TIME)
         locale.setlocale(locale.LC_TIME, 'C') 
         
-        # Asumimos formato DD-MM-YYYY como en el input
-        dt = datetime.strptime(args.date, "%d-%m-%Y")
-        day_name = dt.strftime("%a") # Mon, Tue, Wed...
+        # Intentar ambos formatos de fecha
+        dt = None
+        display_date = args.date
         
-        new_date = f"{args.date} {day_name}"
+        # Formato YYYY-MM-DD -> convertir a DD-MM-YYYY para display
+        try:
+            dt = datetime.strptime(args.date, "%Y-%m-%d")
+            display_date = dt.strftime("%d-%m-%Y")
+        except ValueError:
+            pass
+        
+        # Formato DD-MM-YYYY (original)
+        if dt is None:
+            try:
+                dt = datetime.strptime(args.date, "%d-%m-%Y")
+                display_date = args.date
+            except ValueError:
+                pass
+        
+        if dt:
+            day_name = dt.strftime("%a")  # Mon, Tue, Wed...
+            new_date = f"{display_date} {day_name}"
+        else:
+            print(f"⚠️ Formato de fecha no reconocido (usar YYYY-MM-DD o DD-MM-YYYY): {args.date}")
+            new_date = args.date
         
         # Restaurar locale (buena práctica)
         # locale.setlocale(locale.LC_TIME, original_locale) 
-    except ValueError:
-        # Si falla el parseo (otro formato), usar el string original
-        print(f"⚠️ Formato de fecha no reconocido (esperado DD-MM-YYYY), usando texto original: {args.date}")
+    except Exception as e:
+        # Si falla el parseo, usar el string original
+        print(f"⚠️ Error procesando fecha: {e}")
         new_date = args.date
         
     if not args.quiet:
@@ -389,6 +418,40 @@ def cmd_fix_osd(args):
         
     if not args.quiet:
         print("✅ Corrección completada")
+    
+    # Convertir a H.264 si se solicita
+    if args.convert_h264:
+        import subprocess
+        import os
+        
+        # Archivo temporal y final
+        temp_path = output_path
+        final_path = output_path.replace(".mp4", "_h264.mp4")
+        if final_path == temp_path:
+            final_path = output_path.replace(".mp4", "") + "_h264.mp4"
+        
+        if not args.quiet:
+            print(f"🔄 Convirtiendo a H.264 con ffmpeg...")
+        
+        try:
+            result = subprocess.run([
+                "ffmpeg", "-i", temp_path,
+                "-c:v", "libx264", "-crf", "23",
+                "-c:a", "copy",
+                "-y", final_path
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                # Reemplazar archivo original con H.264
+                os.remove(temp_path)
+                os.rename(final_path, output_path)
+                if not args.quiet:
+                    print(f"✅ Video H.264 guardado: {output_path}")
+            else:
+                print(f"⚠️ Error en ffmpeg: {result.stderr}", file=sys.stderr)
+                
+        except FileNotFoundError:
+            print("⚠️ ffmpeg no encontrado. Manteniendo video mp4v.", file=sys.stderr)
         
     return 0
 

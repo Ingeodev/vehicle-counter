@@ -1,0 +1,20 @@
+# Configuración personalizada para detección ampliada
+
+# Umbrales
+default_threshold: 0.5
+
+class_thresholds:
+  person: 0.4
+  car: 0.5
+  motorcycle: 0.5
+  bus: 0.5
+  truck: 0.5
+
+# Clases a detectar (ID COCO: Nombre)
+vehicle_classes:
+  0: person
+  1: bicycle
+  2: car
+  3: motorcycle
+  5: bus
+  7: truck
