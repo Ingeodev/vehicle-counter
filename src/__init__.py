@@ -9,9 +9,9 @@ Capas:
     - processing: Detector YOLO, tracker, zone manager, counter
     - output: Video writer, CSV exporter, visualizer
     - config: Configuración centralizada
-    - utils: Utilidades compartidas
+    - utils: Utilidades compartidas (OCR, OSD modifier)
 
-Example:
+Example - Pipeline:
     >>> from src import VideoPipeline, PipelineConfig
     >>> 
     >>> config = PipelineConfig()
@@ -19,6 +19,18 @@ Example:
     >>> 
     >>> pipeline = VideoPipeline(config)
     >>> result = pipeline.process_video("video.mp4", zones_path="zones.json")
+
+Example - OSD Date Fix:
+    >>> from src import OSDModifier
+    >>> 
+    >>> modifier = OSDModifier()
+    >>> fixed_frame = modifier.process_frame(frame, "05-01-2026 Mon")
+
+Example - Extract Time:
+    >>> from src import OSDReader
+    >>> 
+    >>> reader = OSDReader(ocr_engine="easyocr")
+    >>> date, time = reader.read_frame(frame)
 """
 
 from .config import PipelineConfig, VideoConfig, DetectorConfig, OutputConfig
@@ -26,10 +38,17 @@ from .storage import StorageReader, StorageWriter, LocalStorageReader, LocalStor
 from .data import VideoInfo, VideoSource, DirectoryScanner, ProcessingResult
 from .processing import YOLODetector, VehicleTracker, ZoneManager, VehicleCounter
 from .pipeline import VideoPipeline
+from .utils.osd_modifier import OSDModifier
+from .utils.osd_reader import OSDReader
+from .api import fix_osd, process_video, extract_time
 
 __version__ = "1.0.0"
 
 __all__ = [
+    # High-level API (recommended)
+    "fix_osd",
+    "process_video",
+    "extract_time",
     # Config
     "PipelineConfig",
     "VideoConfig", 
@@ -52,4 +71,8 @@ __all__ = [
     "VehicleCounter",
     # Pipeline
     "VideoPipeline",
+    # Utils - OSD
+    "OSDModifier",
+    "OSDReader",
 ]
+
