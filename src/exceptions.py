@@ -4,7 +4,7 @@ Excepciones personalizadas para el paquete aforos.
 Todas las excepciones heredan de AforosError para facilitar el catch general.
 
 Example:
-    >>> from src.exceptions import VideoNotFoundError, ConfigurationError
+    >>> from mglon_vehicle_counter.exceptions import VideoNotFoundError, ConfigurationError
     >>> 
     >>> try:
     ...     fix_osd("video_que_no_existe.mp4", date="2026-01-05")

@@ -5,7 +5,7 @@ Funciones que exponen la misma funcionalidad que el CLI pero como llamadas Pytho
 Cada función acepta los mismos parámetros que su equivalente en línea de comandos.
 
 Example:
-    >>> from src.api import fix_osd, process_video, extract_time
+    >>> from mglon_vehicle_counter.api import fix_osd, process_video, extract_time
     >>> 
     >>> # Cambiar fecha en video (igual que: aforos fix-osd video.mp4 --date 2026-01-05)
     >>> fix_osd("video.mp4", date="2026-01-05", output="fixed.mp4", convert_h264=True)

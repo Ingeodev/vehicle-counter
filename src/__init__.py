@@ -12,7 +12,7 @@ Capas:
     - utils: Utilidades compartidas (OCR, OSD modifier)
 
 Example - Pipeline:
-    >>> from src import VideoPipeline, PipelineConfig
+    >>> from mglon_vehicle_counter import VideoPipeline, PipelineConfig
     >>> 
     >>> config = PipelineConfig()
     >>> config.detector.device = "cuda"
@@ -21,13 +21,13 @@ Example - Pipeline:
     >>> result = pipeline.process_video("video.mp4", zones_path="zones.json")
 
 Example - OSD Date Fix:
-    >>> from src import OSDModifier
+    >>> from mglon_vehicle_counter import OSDModifier
     >>> 
     >>> modifier = OSDModifier()
     >>> fixed_frame = modifier.process_frame(frame, "05-01-2026 Mon")
 
 Example - Extract Time:
-    >>> from src import OSDReader
+    >>> from mglon_vehicle_counter import OSDReader
     >>> 
     >>> reader = OSDReader(ocr_engine="easyocr")
     >>> date, time = reader.read_frame(frame)

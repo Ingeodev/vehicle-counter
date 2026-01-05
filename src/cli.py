@@ -18,13 +18,13 @@ def main():
         epilog="""
 Ejemplos:
   # Procesar un video
-  python -m src.cli process video.mp4 --zones zonas.json --output ./output
-
-  # Procesar directorio completo
-  python -m src.cli scan /path/to/videos --output ./output --recursive
-
-  # Usar GPU
-  python -m src.cli process video.mp4 --device cuda
+  python -m mglon_vehicle_counter.cli process video.mp4 --zones zonas.json --output ./output
+  
+  # Escanear directorio
+  python -m mglon_vehicle_counter.cli scan /path/to/videos --output ./output --recursive
+  
+  # Usar CUDA
+  python -m mglon_vehicle_counter.cli process video.mp4 --device cuda
         """
     )
     
@@ -305,8 +305,8 @@ def cmd_fix_osd(args):
     """
     Función envoltorio para llamar a la API de fix_osd desde el CLI.
     """
-    from src.api import fix_osd
-    from src.exceptions import AforosError
+    from mglon_vehicle_counter.api import fix_osd
+    from mglon_vehicle_counter.exceptions import AforosError
     
     try:
         fix_osd(

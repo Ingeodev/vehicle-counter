@@ -14,33 +14,71 @@ Herramienta de línea de comandos para el conteo automático de vehículos, proc
 
 ## Instalación
 
-Asegúrate de tener instaladas las dependencias:
+### Opción 1: Instalar como paquete (Recomendado)
+Para usar tanto el CLI como la librería en tus scripts:
+
+```bash
+# Desde el directorio raíz
+pip install .
+
+# O construir y usar el wheel (ideal para Colab)
+python -m build
+pip install dist/aforos_cli-1.0.0-py3-none-any.whl
+```
+
+### Opción 2: Solo dependencias
+Si solo vas a ejecutar el código fuente:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Si planeas usar el motor OCR avanzado (TrOCR), necesitarás dependencias adicionales que se instalarán automáticamente o puedes instalar manualmente:
+Si planeas usar el motor OCR avanzado (TrOCR), necesitarás dependencias adicionales:
 ```bash
 pip install transformers torch torchvision
 ```
 
-## Uso General
+## Uso como Librería (Python API)
 
-La interfaz se ejecuta a través del módulo `src.cli`:
+El paquete expone funciones de alto nivel para usar en tus propios scripts o notebooks (Google Colab). Todas las funciones tienen tipado fuerte y autocompletado.
 
-```bash
-python -m src.cli <comando> [argumentos]
-```
+```python
+from src import fix_osd, process_video, extract_time
 
-Para ver ayuda de cualquier comando:
-```bash
-python -m src.cli <comando> --help
+# 1. Corregir fecha en video (con conversión H.264/H.265)
+output = fix_osd(
+    video="input.mp4", 
+    date="2026-01-05", 
+    codec="h265"  # Opciones: 'copy', 'h264', 'h265'
+)
+
+# 2. Procesar video (Pipeline completo)
+result = process_video(
+    video="input.mp4",
+    zones="zones.json",
+    device="cuda",  # 'cpu', 'cuda', 'mps'
+    strategy="seg"  # 'box' o 'seg'
+)
+print(f"Total detectado: {result.total_detections}")
+
+# 3. Extraer tiempo
+times = extract_time(["video1.mp4"], model="trocr")
 ```
 
 ---
 
-## Comandos
+## Uso CLI (Línea de Comandos)
+
+Una vez instalado el paquete, puedes usar el comando `aforos` directamente:
+
+```bash
+aforos <comando> [argumentos]
+```
+
+O ejecutar como módulo:
+```bash
+python -m src.cli <comando> [argumentos]
+```
 
 ### 1. `process`
 Procesa un único archivo de video para detectar y contar vehículos.
@@ -158,6 +196,7 @@ python -m src.cli fix-osd video.mp4 --date 31-12-2025
 | `video` | - | **Sí** | Video a corregir. |
 | `--date` | - | **Sí** | Nueva fecha a estampar (`DD-MM-YYYY`). |
 | `--output` | `-o` | No | Ruta del video de salida. Default: `*_fixed.mp4`. |
+| `--codec` | - | No | Codec de salida: `copy` (default), `h264`, `h265`. |
 | `--font` | - | No | Ruta a una fuente `.ttf` personalizada. |
 | `--max-minutes` | - | No | Limitar la duración del video corregido. |
 

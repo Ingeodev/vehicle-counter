@@ -2,7 +2,7 @@
 """
 Test de H.265 para la API de aforos.
 """
-from src import fix_osd
+from mglon_vehicle_counter import fix_osd
 import os
 
 # Configuración

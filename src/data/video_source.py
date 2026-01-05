@@ -26,7 +26,7 @@ class VideoSource:
     Soporta diferentes backends de storage mediante la interfaz StorageReader.
     
     Example:
-        >>> from src.storage import LocalStorageReader
+        >>> from mglon_vehicle_counter.storage import LocalStorageReader
         >>> reader = LocalStorageReader()
         >>> 
         >>> with VideoSource.open(reader, "/path/to/video.mp4") as video:

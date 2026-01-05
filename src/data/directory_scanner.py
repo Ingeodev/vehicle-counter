@@ -27,7 +27,7 @@ class DirectoryScanner:
     Busca videos (.mp4) junto con sus máscaras (.png) y zonas (.json).
     
     Example:
-        >>> from src.storage import LocalStorageReader
+        >>> from mglon_vehicle_counter.storage import LocalStorageReader
         >>> reader = LocalStorageReader()
         >>> scanner = DirectoryScanner(reader)
         >>> result = scanner.scan("/path/to/videos")
