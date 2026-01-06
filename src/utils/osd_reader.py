@@ -63,29 +63,42 @@ class TesseractStrategy(OCRStrategy):
         return text.strip()
 
 
+import threading
+
 class EasyOCRStrategy(OCRStrategy):
     """Estrategia OCR usando EasyOCR."""
     
+    # Cache a nivel de clase y Lock de inicialización
+    _cached_reader = None
+    _init_lock = threading.Lock()
+
     def __init__(self):
-        self._reader = None
+        pass
 
     def _get_reader(self):
-        if self._reader is None:
-            try:
-                import easyocr
-                self._reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-            except ImportError:
-                raise ImportError(
-                    "easyocr no está instalado. "
-                    "Instala con: pip install easyocr"
-                )
-        return self._reader
+        # Doble verificación (Double-Checked Locking) para eficiencia
+        if EasyOCRStrategy._cached_reader is None:
+            with EasyOCRStrategy._init_lock:
+                if EasyOCRStrategy._cached_reader is None:
+                    try:
+                        import easyocr
+                        import torch
+                        use_gpu = torch.cuda.is_available()
+                        print(f"⏳ Cargando modelo EasyOCR (GPU={use_gpu})...")
+                        EasyOCRStrategy._cached_reader = easyocr.Reader(['en'], gpu=use_gpu, verbose=False)
+                        if use_gpu:
+                            print("🚀 EasyOCR cargado en GPU")
+                    except ImportError:
+                        raise ImportError(
+                            "easyocr no está instalado. "
+                            "Instala con: pip install easyocr"
+                        )
+        return EasyOCRStrategy._cached_reader
 
     def recognize_text(self, image: np.ndarray) -> str:
         reader = self._get_reader()
         results = reader.readtext(image, detail=0)
         return ' '.join(results).strip()
-
 
 class TrOCRStrategy(OCRStrategy):
     """
@@ -93,35 +106,38 @@ class TrOCRStrategy(OCRStrategy):
     Requiere 'transformers' y 'torch'.
     """
     
-    # Class-level cache to avoid reloading model on every instance
+    # Class-level cache and Lock
     _cached_processor = None
     _cached_model = None
     _cached_device = None
+    _init_lock = threading.Lock()
 
     def __init__(self, model_name: str = "microsoft/trocr-base-printed"):
         self.model_name = model_name
         
     def _load_model(self):
-        # Check class-level cache
+        # Double-Checked Locking
         if TrOCRStrategy._cached_model is None:
-            try:
-                from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-                import torch
-                
-                print(f"⏳ Cargando modelo TrOCR ({self.model_name})... esto puede tardar la primera vez.")
-                TrOCRStrategy._cached_processor = TrOCRProcessor.from_pretrained(self.model_name)
-                TrOCRStrategy._cached_model = VisionEncoderDecoderModel.from_pretrained(self.model_name)
-                
-                # Mover a GPU si está disponible
-                TrOCRStrategy._cached_device = "cuda" if torch.cuda.is_available() else "cpu"
-                TrOCRStrategy._cached_model.to(TrOCRStrategy._cached_device)
-                print(f"✅ Modelo TrOCR cargado en {TrOCRStrategy._cached_device}")
-                
-            except ImportError:
-                raise ImportError(
-                    "Librerías de TrOCR no instaladas. "
-                    "Instala con: pip install transformers torch torchvision"
-                )
+            with TrOCRStrategy._init_lock:
+                if TrOCRStrategy._cached_model is None:
+                    try:
+                        from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+                        import torch
+                        
+                        print(f"⏳ Cargando modelo TrOCR ({self.model_name})... esto puede tardar la primera vez.")
+                        TrOCRStrategy._cached_processor = TrOCRProcessor.from_pretrained(self.model_name)
+                        TrOCRStrategy._cached_model = VisionEncoderDecoderModel.from_pretrained(self.model_name)
+                        
+                        # Mover a GPU si está disponible
+                        TrOCRStrategy._cached_device = "cuda" if torch.cuda.is_available() else "cpu"
+                        TrOCRStrategy._cached_model.to(TrOCRStrategy._cached_device)
+                        print(f"✅ Modelo TrOCR cargado en {TrOCRStrategy._cached_device}")
+                        
+                    except ImportError:
+                        raise ImportError(
+                            "Librerías de TrOCR no instaladas. "
+                            "Instala con: pip install transformers torch torchvision"
+                        )
         
         # Assign local references for convenience
         self._processor = TrOCRStrategy._cached_processor
