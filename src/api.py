@@ -353,13 +353,16 @@ def process_video(
 
 
 def extract_time(
-    videos: Union[str, List[str]],
-    model: Literal["tesseract", "easyocr", "trocr"] = "easyocr",
-    preprocess: Literal["clahe", "binary", "color"] = "clahe",
+    videos: Union[str, List[str]], 
+    model: str = "easyocr", 
+    preprocess: str = "clahe",
+    roi_x: float = 0.5,
+    roi_y: float = 0.143,
+    corner: str = "top_left",
     output_csv: Optional[str] = None,
     export_roi: Optional[str] = None,
     quiet: bool = False
-) -> List[Dict]:
+) -> List[dict]:
     """
     Extraer fecha/hora del OSD de uno o más videos.
     
@@ -367,6 +370,9 @@ def extract_time(
         videos: Ruta a video o lista de rutas.
         model: Motor OCR a usar (tesseract, easyocr, trocr).
         preprocess: Modo de preprocesamiento (clahe, binary, color).
+        roi_x: Porcentaje ancho ROI (0.0-1.0). Default 0.5.
+        roi_y: Porcentaje alto ROI (0.0-1.0). Default 0.143 (1/7).
+        corner: Esquina anclaje ('top_left', 'top_right', etc).
         output_csv: Archivo CSV de salida (opcional).
         export_roi: Directorio para exportar ROIs procesados (debug).
         quiet: Modo silencioso.
@@ -382,21 +388,37 @@ def extract_time(
     import os
     import csv
     from .utils.osd_reader import format_duration
+    from pathlib import Path
     
     if isinstance(videos, str):
-        videos = [videos]
+        p = Path(videos)
+        if p.is_dir():
+            # Escanear directorio si es necesario
+            from .data.directory_scanner import DirectoryScanner
+            scanner = DirectoryScanner(str(p))
+            scanner.scan()
+            videos = [v.path for v in scanner.videos]
+        else:
+            videos = [videos]
     
     if not quiet:
         print(f"🔍 Extrayendo información de tiempo con OCR ({model}, {preprocess})...")
         if len(videos) > 1:
             print(f"   Procesando {len(videos)} videos...")
     
-    reader = OSDReader(ocr_engine=model, preprocess=preprocess)
+    reader = OSDReader(
+        ocr_engine=model, 
+        preprocess=preprocess,
+        roi_x=roi_x,
+        roi_y=roi_y,
+        corner=corner
+    )
     results = []
+    total = len(videos)
     
-    for video_path in videos:
+    for i, video_path in enumerate(videos):
         if not quiet:
-            print(f"\n📹 {os.path.basename(video_path)}:")
+            print(f"[{i+1}/{total}] Procesando {Path(video_path).name}...", end="\r")
         
         export_path = None
         if export_roi:
@@ -417,7 +439,7 @@ def extract_time(
             results.append(result)
             
             if not quiet:
-                print(f"   Inicio: {result['start_date']} {result['start_time']}")
+                print(f"\n   Inicio: {result['start_date']} {result['start_time']}")
                 print(f"   Fin:    {result['end_date']} {result['end_time']}")
                 print(f"   Duración: {result['duration']}")
                 

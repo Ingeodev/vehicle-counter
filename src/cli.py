@@ -98,6 +98,9 @@ Ejemplos:
                                help="Motor OCR a usar (default: easyocr)")
     extract_parser.add_argument("--preprocess", "-p", choices=["clahe", "binary", "color"], default="clahe",
                                help="Modo de preprocesamiento (default: clahe)")
+    extract_parser.add_argument("--roi-x", type=float, default=0.5, help="Porcentaje ancho ROI (0.0-1.0).")
+    extract_parser.add_argument("--roi-y", type=float, default=0.143, help="Porcentaje alto ROI (0.0-1.0).")
+    extract_parser.add_argument("--corner", choices=["top_left", "top_right", "bottom_left", "bottom_right"], default="top_left", help="Esquina de anclaje del ROI.")
     extract_parser.add_argument("--output", "-o", help="Archivo CSV de salida (opcional)")
     extract_parser.add_argument("--export-roi", help="Directorio para guardar ROIs procesados (debug)")
     extract_parser.add_argument("--quiet", "-q", action="store_true")

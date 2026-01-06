@@ -175,23 +175,31 @@ class OSDReader:
     REF_WIDTH = 1920.0
     REF_HEIGHT = 1080.0
     
-    # Coordenadas relativas (porcentajes) - ROI expandido
-    REL_X1 = 30 / REF_WIDTH    # 0.0156
-    REL_Y1 = 40 / REF_HEIGHT   # 0.0370
-    REL_X2 = 650 / REF_WIDTH   # 0.3385
-    REL_Y2 = 110 / REF_HEIGHT  # 0.1019
+    # Valores por defecto (si no se especifican otros)
+    # Cubre desde la esquina hasta mitad (0.5) del ancho y un séptimo (0.143) de la altura
+    DEFAULT_X_PCT = 0.5
+    DEFAULT_Y_PCT = 1.0 / 7.0
     
     def __init__(self, ocr_engine: Literal["tesseract", "easyocr", "trocr"] = "easyocr",
-                 preprocess: Literal["clahe", "binary", "color"] = "clahe"):
+                 preprocess: Literal["clahe", "binary", "color"] = "clahe",
+                 roi_x: float = DEFAULT_X_PCT,
+                 roi_y: float = DEFAULT_Y_PCT,
+                 corner: Literal["top_left", "top_right", "bottom_left", "bottom_right"] = "top_left"):
         """
-        Inicializa el lector OSD.
+        Inicializa el lector OSD con opciones de ROI dinámico.
         
         Args:
-            ocr_engine: Motor OCR a usar ("tesseract", "easyocr", "trocr")
-            preprocess: Modo de preprocesamiento ("clahe", "binary", "color")
+            ocr_engine: Motor OCR a usar.
+            preprocess: Estrategia de preprocesamiento de imagen.
+            roi_x: Porcentaje del ancho a capturar (0.0 a 1.0). Default 0.5.
+            roi_y: Porcentaje de la altura a capturar (0.0 a 1.0). Default 1/7.
+            corner: Esquina de anclaje ("top_left", "top_right", "bottom_left", "bottom_right").
         """
         self.preprocess_mode = preprocess
         self.strategy = self._get_strategy(ocr_engine)
+        self.roi_x = roi_x
+        self.roi_y = roi_y
+        self.corner = corner
         
     def _get_strategy(self, engine_name: str) -> OCRStrategy:
         if engine_name == "tesseract":
@@ -204,22 +212,41 @@ class OSDReader:
             raise ValueError(f"Motor OCR no soportado: {engine_name}")
 
     def _extract_roi(self, frame: np.ndarray) -> np.ndarray:
-        """Extrae la región de interés (ROI) del OSD."""
-        height, width = frame.shape[:2]
-        x1 = int(width * self.REL_X1)
-        y1 = int(height * self.REL_Y1)
-        x2 = int(width * self.REL_X2)
-        y2 = int(height * self.REL_Y2)
+        """Extrae la región de interés (ROI) basada en configuración dinámica."""
+        h, w = frame.shape[:2]
         
-        x1 = max(0, x1)
-        y1 = max(0, y1)
-        x2 = min(width, x2)
-        y2 = min(height, y2)
+        # Calcular dimensiones del recorte
+        crop_w = int(w * self.roi_x)
+        crop_h = int(h * self.roi_y)
+        
+        # Calcular coordenadas segun la esquina
+        if self.corner == "top_left":
+            x1, y1 = 0, 0
+            x2, y2 = crop_w, crop_h
+        elif self.corner == "top_right":
+            x1, y1 = w - crop_w, 0
+            x2, y2 = w, crop_h
+        elif self.corner == "bottom_left":
+            x1, y1 = 0, h - crop_h
+            x2, y2 = crop_w, h
+        elif self.corner == "bottom_right":
+            x1, y1 = w - crop_w, h - crop_h
+            x2, y2 = w, h
+        else:
+            # Fallback a top_left
+            x1, y1 = 0, 0
+            x2, y2 = crop_w, crop_h
+            
+        # Asegurar límites
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
         
         return frame[y1:y2, x1:x2].copy()
     
     def _preprocess_roi(self, roi: np.ndarray) -> np.ndarray:
         """Pre-procesa el ROI para mejorar la precisión del OCR."""
+        if roi.size == 0: return roi
+        
         # Escalar x2 para mejorar OCR
         scaled = cv2.resize(roi, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
         
