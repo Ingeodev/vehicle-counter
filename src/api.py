@@ -435,6 +435,7 @@ def extract_time(
                 "end_date": time_info.date or "Unknown", # Note: VideoTimeInfo has single date, assuming same for start/end if not distinct in object
                 "end_time": time_info.end_time or "Unknown",
                 "duration": str(time_info.duration) or "Unknown",
+                "roi_coords": time_info.roi_coords
             }
             results.append(result)
             
@@ -451,6 +452,7 @@ def extract_time(
                 "end_date": "",
                 "end_time": "",
                 "duration": "",
+                "roi_coords": "",
             }
             results.append(result)
             if not quiet:
