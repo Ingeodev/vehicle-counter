@@ -69,99 +69,253 @@ class OSDModifier:
         
         return mask
 
-    def process_frame(self, frame: np.ndarray, new_date_text: str) -> np.ndarray:
+    def _find_optimal_font_size(
+        self, 
+        text: str, 
+        target_width: int, 
+        target_height: int,
+        min_size: int = 8,
+        max_size: int = 200
+    ) -> int:
+        """
+        Encuentra el tamaño de fuente óptimo para que el texto quepa en el área especificada.
+        
+        Args:
+            text: Texto a renderizar
+            target_width: Ancho disponible en píxeles
+            target_height: Alto disponible en píxeles
+            min_size: Tamaño mínimo de fuente a probar
+            max_size: Tamaño máximo de fuente a probar
+            
+        Returns:
+            Tamaño de fuente óptimo
+        """
+        optimal_size = min_size
+        
+        for size in range(min_size, max_size + 1):
+            try:
+                font = ImageFont.truetype(self.font_path, size)
+            except IOError:
+                font = ImageFont.load_default()
+                break
+            
+            # Calcular ancho total con el factor de estiramiento (1.28)
+            total_width = 0
+            for char in text:
+                try:
+                    bbox = font.getbbox(char)
+                    char_w = bbox[2] - bbox[0]
+                except:
+                    char_w = size // 2
+                total_width += int(char_w * 1.28)
+            
+            # Verificar si cabe en el área
+            if total_width <= target_width and size <= target_height:
+                optimal_size = size
+            else:
+                # Ya no cabe, el anterior era el óptimo
+                break
+        
+        return optimal_size
+
+    def process_frame(
+        self, 
+        frame: np.ndarray, 
+        new_date_text: str,
+        top: int = None,
+        right: int = None,
+        bottom: int = None,
+        left: int = None,
+        debug: bool = False
+    ) -> np.ndarray:
         """
         Procesa un frame: borra la fecha antigua y escribe la nueva.
+        
+        Args:
+            frame: Frame de video (numpy array BGR)
+            new_date_text: Texto de la nueva fecha a escribir
+            top: Coordenada Y superior del bounding box (opcional)
+            right: Coordenada X derecha del bounding box (opcional)
+            bottom: Coordenada Y inferior del bounding box (opcional)
+            left: Coordenada X izquierda del bounding box (opcional)
+            debug: Si es True, dibuja el bounding box en rojo para visualización
+            
+        Si se proporcionan los 4 parámetros de bounding box, el tamaño de fuente
+        se ajusta dinámicamente para ocupar todo el área especificada.
+        Si no se proporcionan, se usa el comportamiento estático original.
         """
         height, width = frame.shape[:2]
         
-        # Actualizar máscara si cambia la resolución
-        if (width, height) != self._last_dims:
-            self._mask = self._create_mask(width, height)
-            self._last_dims = (width, height)
+        # Determinar si usar bounding box dinámico o estático
+        use_dynamic_bbox = all(v is not None for v in [top, right, bottom, left])
+        
+        if use_dynamic_bbox:
+            # Validar y ajustar límites
+            left = max(0, min(left, width - 1))
+            right = max(left + 1, min(right, width))
+            top = max(0, min(top, height - 1))
+            bottom = max(top + 1, min(bottom, height))
+            
+            # Crear máscara dinámica para el bounding box especificado
+            mask = np.zeros((height, width), dtype=np.uint8)
+            cv2.rectangle(mask, (left, top), (right, bottom), 255, -1)
+            
+            # Calcular dimensiones del área
+            zone_w = right - left
+            zone_h = bottom - top
+            
+            # Encontrar tamaño de fuente óptimo para el bounding box
+            font_size = self._find_optimal_font_size(
+                new_date_text, 
+                zone_w, 
+                int(zone_h * 0.92)  # 92% de altura para margen
+            )
+            
+            # Posición de texto
+            x = left
+            y = top
+        else:
+            # Comportamiento original: usar coordenadas relativas
+            # Actualizar máscara si cambia la resolución
+            if (width, height) != self._last_dims:
+                self._mask = self._create_mask(width, height)
+                self._last_dims = (width, height)
+            
+            mask = self._mask
+            
+            # Calcular tamaño de fuente dinámico basado en proporciones
+            zone_h = int(height * self.rel_h)
+            zone_w = int(width * self.rel_w)
+            font_size = int(zone_h * 0.92)
+            
+            # Posición
+            x = int(width * self.rel_x)
+            y = int(height * self.rel_y)
         
         # 1. Inpainting (Borrar fecha antigua)
-        clean_frame = cv2.inpaint(frame, self._mask, 3, cv2.INPAINT_TELEA)
+        clean_frame = cv2.inpaint(frame, mask, 3, cv2.INPAINT_TELEA)
         
-        # 2. Convertir a PIL para dibujar texto Unicode
-        img_pil = Image.fromarray(cv2.cvtColor(clean_frame, cv2.COLOR_BGR2RGB))
-        draw = ImageDraw.Draw(img_pil)
+        # Extraer brillo del frame LIMPIO (después del inpainting) para determinar color correcto
+        gray_clean = cv2.cvtColor(clean_frame, cv2.COLOR_BGR2GRAY)
         
-        # Calcular tamaño de fuente dinámico
-        # Altura del área de texto: ~56px en 576p
-        zone_h = int(height * self.rel_h)
-        font_size = int(zone_h * 0.92) # 92% de la altura de la zona (antes 80%)
-        
-        try:
-            font = ImageFont.truetype(self.font_path, font_size)
-        except IOError:
-            font = ImageFont.load_default()
+        if use_dynamic_bbox:
+            # === ENFOQUE ESCALADO: Renderizar texto y escalarlo al bounding box ===
+            zone_w = right - left
+            zone_h = bottom - top
             
-        # Posición
-        x = int(width * self.rel_x)
-        y = int(height * self.rel_y)
-        
-        # Ajuste fino: centrar verticalmente
-        # En PIL, draw.text((x, y)) dibuja con la esquina superior izquierda
-        # Vamos a añadir un pequeño margen a la izquierda
-        x_text = x + int(width * 0.005)
-        # Y centrar verticalmente en la zona
-        # Ajuste visual (subido ~5% respecto al 0.15 anterior para alinear con la hora)
-        y_text = y + (zone_h - font_size) // 2 + int(font_size * 0.10)
-        
-        # IMPORTANTE: Extraer brillo del frame ORIGINAL (no inpainted)
-        gray_original = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        # --- ENFOQUE OPTIMIZADO: Color POR CARÁCTER con ROIs pequeños ---
-        # Pre-calcular métricas de caracteres una sola vez
-        char_metrics = []
-        total_width = 0
-        for char in new_date_text:
-            try:
-                bbox = font.getbbox(char)
-                char_w = bbox[2] - bbox[0]
-                char_h = bbox[3] - bbox[1]
-            except:
-                char_w = font_size // 2
-                char_h = font_size
-            # Estirar horizontalmente (1.166 * 1.1 = 1.28)
-            char_w_stretched = int(char_w * 1.28)
-            char_metrics.append((char, char_w_stretched, char_h))
-            total_width += char_w_stretched
-        
-        # Dibujar cada carácter con su color óptimo
-        current_x = x_text
-        char_index = 0
-        day_start_index = len(new_date_text) - 3  # Últimos 3 caracteres son el día (Wed, Mon, etc.)
-        
-        for char, char_w, char_h in char_metrics:
-            # Definir ROI pequeño alrededor del carácter (solo lo necesario)
-            roi_x1 = max(0, current_x)
-            roi_y1 = max(0, y_text)
-            roi_x2 = min(width, current_x + char_w + 2)
-            roi_y2 = min(height, y_text + font_size + 2)
+            # Determinar color basado en brillo promedio del bounding box LIMPIO
+            roi_gray = gray_clean[top:bottom, left:right]
+            avg_brightness = np.mean(roi_gray)
             
-            # Extraer brillo promedio del ROI pequeño (muy rápido)
-            if roi_x2 > roi_x1 and roi_y2 > roi_y1:
-                roi_gray = gray_original[roi_y1:roi_y2, roi_x1:roi_x2]
-                avg_brightness = np.mean(roi_gray)
-                
-                # Elegir color
-                if avg_brightness > 127:
-                    char_color = (0, 0, 0)  # Negro sobre fondo claro
-                else:
-                    char_color = (255, 255, 255)  # Blanco sobre fondo oscuro
+            if avg_brightness > 127:
+                text_color = (0, 0, 0)  # Negro sobre fondo claro
             else:
-                char_color = (255, 255, 255)
+                text_color = (255, 255, 255)  # Blanco sobre fondo oscuro
             
-            # Dibujar este carácter con NEGRITA simulada (para todo el texto)
-            # Bold simulation: dibujar en posiciones +1px horizontalmente
+            # Usar un tamaño de fuente grande para mejor calidad al escalar
+            render_font_size = 100
+            try:
+                font = ImageFont.truetype(self.font_path, render_font_size)
+            except IOError:
+                font = ImageFont.load_default()
+            
+            # Calcular dimensiones del texto renderizado
+            # Crear imagen dummy para medir
+            dummy_img = Image.new('RGBA', (1, 1))
+            dummy_draw = ImageDraw.Draw(dummy_img)
+            
+            # Medir el texto completo
+            text_bbox = dummy_draw.textbbox((0, 0), new_date_text, font=font)
+            text_w = text_bbox[2] - text_bbox[0]
+            text_h = text_bbox[3] - text_bbox[1]
+            
+            # Crear imagen del tamaño del texto con fondo transparente
+            text_img = Image.new('RGBA', (text_w + 4, text_h + 4), (0, 0, 0, 0))
+            text_draw = ImageDraw.Draw(text_img)
+            
+            # Dibujar texto con negrita simulada
             for dx in [0, 1]:
-                draw.text((current_x + dx, y_text), char, font=font, fill=char_color)
+                text_draw.text((2 - text_bbox[0] + dx, 2 - text_bbox[1]), 
+                              new_date_text, font=font, fill=(*text_color, 255))
             
-            # Avanzar posición X
-            current_x += char_w
-            char_index += 1
+            # Escalar la imagen del texto al tamaño exacto del bounding box
+            text_img_scaled = text_img.resize((zone_w, zone_h), Image.Resampling.LANCZOS)
+            
+            # Convertir frame limpio a PIL
+            img_pil = Image.fromarray(cv2.cvtColor(clean_frame, cv2.COLOR_BGR2RGB))
+            img_pil = img_pil.convert('RGBA')
+            
+            # Pegar el texto escalado en la posición del bounding box
+            img_pil.paste(text_img_scaled, (left, top), text_img_scaled)
+            
+            # Convertir vuelta a BGR
+            result = cv2.cvtColor(np.array(img_pil.convert('RGB')), cv2.COLOR_RGB2BGR)
+        else:
+            # === COMPORTAMIENTO ORIGINAL: para modo estático ===
+            img_pil = Image.fromarray(cv2.cvtColor(clean_frame, cv2.COLOR_BGR2RGB))
+            draw = ImageDraw.Draw(img_pil)
+            
+            try:
+                font = ImageFont.truetype(self.font_path, font_size)
+            except IOError:
+                font = ImageFont.load_default()
+            
+            # Ajuste fino original: centrar verticalmente
+            zone_h = int(height * self.rel_h)
+            x_text = x + int(width * 0.005)
+            y_text = y + (zone_h - font_size) // 2 + int(font_size * 0.10)
+            
+            # Pre-calcular métricas de caracteres
+            char_metrics = []
+            total_width = 0
+            for char in new_date_text:
+                try:
+                    bbox = font.getbbox(char)
+                    char_w = bbox[2] - bbox[0]
+                    char_h = bbox[3] - bbox[1]
+                except:
+                    char_w = font_size // 2
+                    char_h = font_size
+                char_w_stretched = int(char_w * 1.28)
+                char_metrics.append((char, char_w_stretched, char_h))
+                total_width += char_w_stretched
+            
+            # Dibujar cada carácter con su color óptimo
+            current_x = x_text
+            
+            for char, char_w, char_h in char_metrics:
+                roi_x1 = max(0, current_x)
+                roi_y1 = max(0, y_text)
+                roi_x2 = min(width, current_x + char_w + 2)
+                roi_y2 = min(height, y_text + font_size + 2)
+                
+                if roi_x2 > roi_x1 and roi_y2 > roi_y1:
+                    roi_gray = gray_clean[roi_y1:roi_y2, roi_x1:roi_x2]
+                    avg_brightness = np.mean(roi_gray)
+                    
+                    if avg_brightness > 127:
+                        char_color = (0, 0, 0)
+                    else:
+                        char_color = (255, 255, 255)
+                else:
+                    char_color = (255, 255, 255)
+                
+                for dx in [0, 1]:
+                    draw.text((current_x + dx, y_text), char, font=font, fill=char_color)
+                
+                current_x += char_w
+            
+            result = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
         
-        # Convertir vuelta a BGR
-        return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+        # Debug: dibujar bounding box en rojo
+        if debug and use_dynamic_bbox:
+            cv2.rectangle(result, (left, top), (right, bottom), (0, 0, 255), 2)
+        elif debug:
+            # Dibujar bounding box estático en modo debug
+            x = int(width * self.rel_x)
+            y = int(height * self.rel_y)
+            w = int(width * self.rel_w)
+            h = int(height * self.rel_h)
+            cv2.rectangle(result, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        
+        return result
