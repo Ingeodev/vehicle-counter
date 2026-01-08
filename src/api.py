@@ -53,7 +53,12 @@ def fix_osd(
     font: Optional[str] = None,
     convert_h264: bool = False,
     codec: Literal["copy", "h264", "h265"] = "copy",
-    quiet: bool = False
+    quiet: bool = False,
+    top: Optional[int] = None,
+    right: Optional[int] = None,
+    bottom: Optional[int] = None,
+    left: Optional[int] = None,
+    debug: bool = False
 ) -> str:
     """
     Corregir la fecha en el OSD de un video.
@@ -66,7 +71,13 @@ def fix_osd(
         font: Ruta a fuente TTF personalizada.
         convert_h264: (Deprecado) Usar codec='h264'.
         codec: Codec de salida ('copy' para mp4v, 'h264', 'h265').
+        codec: Codec de salida ('copy' para mp4v, 'h264', 'h265').
         quiet: Modo silencioso sin mensajes de progreso.
+        top: Coordenada Y superior del bounding box (opcional).
+        right: Coordenada X derecha del bounding box (opcional).
+        bottom: Coordenada Y inferior del bounding box (opcional).
+        left: Coordenada X izquierda del bounding box (opcional).
+        debug: Activar modo debug (dibuja bounding box en rojo).
     
     Returns:
         Ruta al video de salida.
@@ -177,7 +188,15 @@ def fix_osd(
             ret, frame = cap.read()
             if not ret:
                 break
-            fixed_frame = modifier.process_frame(frame, new_date)
+            fixed_frame = modifier.process_frame(
+                frame, 
+                new_date,
+                top=top,
+                right=right,
+                bottom=bottom,
+                left=left,
+                debug=debug
+            )
             out.write(fixed_frame)
             processed += 1
             pbar.update(1)

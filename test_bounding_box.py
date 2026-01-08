@@ -141,14 +141,39 @@ def test_bounding_box(
 
 if __name__ == "__main__":
     # Parámetros de prueba según el usuario
+    
     test_bounding_box(
         video_path="input/videos/boulevard_oriente.mp4",
         output_path="results/bounding_boxes/boulevard_oriente_fixed.mp4",
         date="2026-01-07",  # Fecha de hoy
         top=60,
-        right=381,
+        right=388, # 597
         bottom=93,
         left=50,
+        max_minutes=0.1,
+        debug=True
+    )
+
+    test_bounding_box(
+        video_path="input/videos/hiv00280_1_48_10.mp4",
+        output_path="results/bounding_boxes/hiv00280_1_48_10_fixed.mp4",
+        date="2026-01-07",  # Fecha de hoy
+        top=68,
+        right=517, # 796
+        bottom=108,
+        left=68,
+        max_minutes=0.1,
+        debug=True
+    )
+
+    test_bounding_box(
+        video_path="input/videos/hiv00248_23_49_51.mp4",
+        output_path="results/bounding_boxes/hiv00248_23_49_51_fixed.mp4",
+        date="2026-01-07",  # Fecha de hoy
+        top=34,
+        right=296, # 440
+        bottom=54,
+        left=76,
         max_minutes=0.1,
         debug=True
     )

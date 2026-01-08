@@ -89,6 +89,11 @@ Ejemplos:
     fix_parser.add_argument("--font", help="Ruta a fuente TTF")
     fix_parser.add_argument("--convert-h264", action="store_true", help="(Deprecado) Usar --codec h264")
     fix_parser.add_argument("--codec", choices=["copy", "h264", "h265"], default="copy", help="Codec de salida")
+    fix_parser.add_argument("--top", type=int, help="Coordenada Y superior")
+    fix_parser.add_argument("--right", type=int, help="Coordenada X derecha")
+    fix_parser.add_argument("--bottom", type=int, help="Coordenada Y inferior")
+    fix_parser.add_argument("--left", type=int, help="Coordenada X izquierda")
+    fix_parser.add_argument("--debug", action="store_true", help="Activar modo debug (bounding box rojo)")
     fix_parser.add_argument("--quiet", "-q", action="store_true", help="Modo silencioso")
     fix_parser.set_defaults(func=cmd_fix_osd)
     # Comando: extract-time
@@ -308,8 +313,8 @@ def cmd_fix_osd(args):
     """
     Función envoltorio para llamar a la API de fix_osd desde el CLI.
     """
-    from mglon_vehicle_counter.api import fix_osd
-    from mglon_vehicle_counter.exceptions import AforosError
+    from .api import fix_osd
+    from .exceptions import AforosError
     
     try:
         fix_osd(
@@ -320,8 +325,14 @@ def cmd_fix_osd(args):
             font=args.font,
             convert_h264=args.convert_h264,
             codec=args.codec,
-            quiet=args.quiet
+            quiet=args.quiet,
+            top=args.top,
+            right=args.right,
+            bottom=args.bottom,
+            left=args.left,
+            debug=args.debug
         )
+        return 0
     except AforosError as e:
         print(f"❌ Error: {e}")
         exit(1)
