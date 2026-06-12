@@ -51,7 +51,8 @@ class YOLOSegmenter:
             "device": self.device,
             "classes": self.allowed_class_ids,
             "verbose": False,
-            "retina_masks": True,  # Máscaras de alta calidad
+            "retina_masks": True,
+            "half": self.device != "cpu",
         }
 
         # Tracker config

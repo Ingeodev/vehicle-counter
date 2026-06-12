@@ -98,6 +98,7 @@ class YOLODetector:
             "device": self.device,
             "classes": self.allowed_class_ids,
             "verbose": False,
+            "half": self.device != "cpu",
         }
 
         # Usar tracker config si está definido
