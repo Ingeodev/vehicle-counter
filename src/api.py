@@ -345,12 +345,16 @@ def process_video(
     config.output.output_folder = output
     config.detector.strategy = strategy
 
-    # Cargar config de modelo si existe
     if model_config:
         if not os.path.exists(model_config):
-            raise ConfigurationError(
-                f"Archivo de configuración no encontrado", model_config
-            )
+            pkg_dir = Path(__file__).parent / "assets"
+            pkg_path = pkg_dir / model_config
+            if pkg_path.exists():
+                model_config = str(pkg_path)
+            else:
+                raise ConfigurationError(
+                    f"Archivo de configuración no encontrado", model_config
+                )
 
         try:
             with open(model_config, "r") as f:

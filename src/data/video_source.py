@@ -2,6 +2,8 @@
 VideoSource - Abstracción para lectura de video con OpenCV.
 """
 
+import sys
+
 import cv2
 import numpy as np
 from dataclasses import dataclass
@@ -99,10 +101,17 @@ class VideoSource:
         Returns:
             VideoSource configurado
         """
-        cap = cv2.VideoCapture(path)
-        if not cap.isOpened():
-            raise ValueError(f"No se pudo abrir el video: {path}")
-        return cls(cap, path)
+        backends = [cv2.CAP_ANY, cv2.CAP_FFMPEG]
+        if sys.platform == "darwin":
+            backends.append(cv2.CAP_AVFOUNDATION)
+
+        for backend in backends:
+            cap = cv2.VideoCapture(path, backend)
+            if cap.isOpened():
+                return cls(cap, path)
+            cap.release()
+
+        raise ValueError(f"No se pudo abrir el video: {path}")
 
     def close(self) -> None:
         """Cierra el video y libera recursos."""
