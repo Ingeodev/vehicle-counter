@@ -2,6 +2,7 @@
 # See https://docs.ultralytics.com/modes/track/
 
 tracker_type: botsort  # tracker type: botsort or bytetrack
+model:  # path to model file (required by ultralytics tracker)
 
 # BoT-SORT-specific settings for stable vehicle tracking
 track_high_thresh: 0.5  # threshold for first association (0.5 is standard, was 0.3)
